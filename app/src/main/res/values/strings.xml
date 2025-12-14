@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoGLM</string>
+    
+    <!-- MainActivity -->
+    <string name="task_input_hint">输入任务指令，例如：打开淘宝搜索蓝牙耳机</string>
+    <string name="btn_execute">执行任务</string>
+    <string name="btn_stop">停止</string>
+    <string name="service_status">服务状态</string>
+    <string name="service_running">✅ 无障碍服务已启用</string>
+    <string name="service_stopped">❌ 无障碍服务未启用</string>
+    <string name="accessibility_service_description">AutoGLM 需要无障碍权限来执行自动化操作，包括点击、滑动、截图等。此服务仅在您主动执行任务时使用，不会在后台收集任何数据。</string>
+    <string name="btn_open_accessibility">开启无障碍权限</string>
+    <string name="execution_log">执行日志</string>
+    
+    <!-- SettingsActivity -->
+    <string name="settings_title">设置</string>
+    <string name="api_configs_title">API 配置</string>
+    <string name="btn_add_api">+ 添加</string>
+    <string name="btn_save">保存</string>
+    <string name="settings_saved">设置已保存</string>
+    <string name="empty_api_hint">暂无 API 配置\n点击右上角 + 添加</string>
+    
+    <!-- API 配置 -->
+    <string name="api_key_label">API Key</string>
+    <string name="api_key_hint">输入您的 API Key</string>
+    <string name="provider_label">AI 提供商</string>
+    <string name="custom_endpoint_hint">API 端点 URL</string>
+    <string name="custom_model_hint">模型名称</string>
+    
+    <!-- 高级设置 -->
+    <string name="advanced_settings">高级设置</string>
+    <string name="max_retries_label">单个 API 重试次数</string>
+    <string name="polling_explanation">💡 轮询机制说明：\n• 可添加多个 API 配置\n• 调用时随机选择一个启用的 API\n• 如果调用失败，自动切换到其他 API\n• 所有模型均支持图像识别（多模态）</string>
+    
+    <!-- 状态消息 -->
+    <string name="error_no_api_key">请先在设置中添加 API 配置</string>
+    <string name="error_no_accessibility">请先开启无障碍权限</string>
+    <string name="error_network">网络错误：%s</string>
+    <string name="error_custom_endpoint">请填写自定义端点和模型</string>
+    <string name="task_started">任务开始执行</string>
+    <string name="task_completed">任务执行完成</string>
+    <string name="task_stopped">任务已停止</string>
+    <string name="action_tap">点击 (%d, %d)</string>
+    <string name="action_swipe">滑动 (%d,%d) → (%d,%d)</string>
+    <string name="action_input">输入: %s</string>
+    <string name="analyzing">正在分析屏幕...</string>
+    <string name="retrying">重试中 (%d/%d)...</string>
+    <string name="switching_api">切换到其他 API...</string>
+</resources>

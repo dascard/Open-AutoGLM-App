@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Colors -->
+    <color name="primary">#121212</color>
+    <color name="primary_dark">#000000</color>
+    <color name="primary_variant">#00C853</color>
+    <color name="secondary">#00C853</color>
+    <color name="secondary_variant">#009624</color>
+    
+    <!-- Background Colors -->
+    <color name="background">#121212</color>
+    <color name="surface">#1E1E1E</color>
+    <color name="error">#CF6679</color>
+    <color name="splash_background">#121212</color>
+    <color name="accent">#00C853</color>
+    
+    <!-- Text Colors -->
+    <color name="on_primary">#FFFFFF</color>
+    <color name="on_secondary">#000000</color>
+    <color name="on_background">#FFFFFF</color>
+    <color name="on_surface">#FFFFFF</color>
+    <color name="on_error">#000000</color>
+    
+    <!-- Status Colors -->
+    <color name="status_success">#00C853</color>
+    <color name="status_error">#CF6679</color>
+    <color name="status_warning">#FFB300</color>
+    <color name="status_info">#2196F3</color>
+    
+    <!-- Log Colors -->
+    <color name="log_action">#00C853</color>
+    <color name="log_info">#90CAF9</color>
+    <color name="log_error">#EF9A9A</color>
+</resources>
