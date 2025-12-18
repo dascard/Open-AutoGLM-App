@@ -42,61 +42,114 @@
       </div>
     </div>
 
-    <!-- 2. 权限引导卡片 -->
-    <div v-if="!showSettings && (!serviceEnabled || !overlayPermissionValid)" class="rounded-xl p-0 shadow-lg overflow-hidden animate-fade-in-down border bg-white border-red-200 dark:bg-[#1E1E1E] dark:border-red-500/30">
-      <div class="px-4 py-3 border-b flex items-center gap-2 bg-red-50 border-red-100 dark:bg-red-500/10 dark:border-red-500/10">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-red-500 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <span class="font-bold text-sm text-red-800 dark:text-red-100">需要必要的系统权限</span>
+    <!-- 2. 模式选择和权限引导卡片 -->
+    <div v-if="!showSettings" class="rounded-xl p-0 shadow-lg overflow-hidden animate-fade-in-down border bg-white border-gray-200 dark:bg-[#1E1E1E] dark:border-white/5">
+      <!-- 执行模式选择 -->
+      <div class="px-4 py-3 border-b flex items-center justify-between bg-gray-50 border-gray-200 dark:bg-[#181818] dark:border-white/5">
+        <span class="font-bold text-sm text-gray-700 dark:text-gray-200">执行模式</span>
+        <div class="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-0.5">
+          <button 
+            @click="executionMode = 'accessibility'"
+            class="px-3 py-1 text-xs font-medium rounded-md transition-all"
+            :class="executionMode === 'accessibility' ? 'bg-white dark:bg-gray-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'"
+          >
+            无障碍服务
+          </button>
+          <button 
+            @click="executionMode = 'shizuku'"
+            class="px-3 py-1 text-xs font-medium rounded-md transition-all"
+            :class="executionMode === 'shizuku' ? 'bg-white dark:bg-gray-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'"
+          >
+            Shizuku ADB
+          </button>
+        </div>
       </div>
       
       <div class="p-4 flex flex-col gap-3">
-        <!-- 无障碍权限项 -->
-        <div class="flex items-center justify-between p-3 rounded-lg border transition-colors bg-gray-50 border-gray-200 dark:bg-[#121212] dark:border-white/5">
-          <div class="flex items-center gap-3">
-            <div class="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 14.14 14.14"/><path d="m14.83 9.17-5.66 5.66"/></svg>
+        <!-- 无障碍服务模式 -->
+        <template v-if="executionMode === 'accessibility'">
+          <!-- 无障碍权限项 -->
+          <div class="flex items-center justify-between p-3 rounded-lg border transition-colors bg-gray-50 border-gray-200 dark:bg-[#121212] dark:border-white/5">
+            <div class="flex items-center gap-3">
+              <div class="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 14.14 14.14"/><path d="m14.83 9.17-5.66 5.66"/></svg>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-sm font-medium text-gray-900 dark:text-white">无障碍服务</span>
+                <span class="text-xs text-gray-500">用于模拟点击和获取屏幕信息</span>
+              </div>
             </div>
-            <div class="flex flex-col">
-              <span class="text-sm font-medium text-gray-900 dark:text-white">无障碍服务</span>
-              <span class="text-xs text-gray-500">用于模拟点击和获取屏幕信息</span>
+            <button 
+              v-if="!serviceEnabled"
+              @click="openAccessibility"
+              class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-md transition-colors shadow-sm"
+            >
+              去开启
+            </button>
+            <div v-else class="flex items-center gap-1 text-[#00C853] text-xs font-medium px-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              已开启
             </div>
           </div>
-          <button 
-            v-if="!serviceEnabled"
-            @click="openAccessibility"
-            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-md transition-colors shadow-sm"
-          >
-            去开启
-          </button>
-          <div v-else class="flex items-center gap-1 text-[#00C853] text-xs font-medium px-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-            已开启
-          </div>
-        </div>
+        </template>
 
-        <!-- 悬浮窗权限项 -->
-        <div class="flex items-center justify-between p-3 rounded-lg border transition-colors bg-gray-50 border-gray-200 dark:bg-[#121212] dark:border-white/5">
-          <div class="flex items-center gap-3">
-            <div class="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        <!-- Shizuku ADB 模式 -->
+        <template v-else>
+          <!-- Shizuku 状态项 -->
+          <div class="flex items-center justify-between p-3 rounded-lg border transition-colors bg-gray-50 border-gray-200 dark:bg-[#121212] dark:border-white/5">
+            <div class="flex items-center gap-3">
+              <div class="p-2 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-sm font-medium text-gray-900 dark:text-white">Shizuku 服务</span>
+                <span class="text-xs text-gray-500">{{ shizukuStatus.available ? (shizukuStatus.hasPermission ? '已就绪' : '需要授权') : '请先启动 Shizuku 应用' }}</span>
+              </div>
             </div>
-            <div class="flex flex-col">
-              <span class="text-sm font-medium text-gray-900 dark:text-white">悬浮窗权限</span>
-              <span class="text-xs text-gray-500">用于显示实时状态和控制面板</span>
+            <div v-if="shizukuStatus.available && shizukuStatus.hasPermission" class="flex items-center gap-1 text-[#00C853] text-xs font-medium px-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              已就绪
+            </div>
+            <button 
+              v-else-if="shizukuStatus.available && !shizukuStatus.hasPermission"
+              @click="requestShizukuPermission"
+              class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-md transition-colors shadow-sm"
+            >
+              授权
+            </button>
+            <div v-else class="flex items-center gap-1 text-red-500 text-xs font-medium px-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              未启动
             </div>
           </div>
-          <button 
-            v-if="!overlayPermissionValid"
-            @click="requestOverlayPermission"
-            class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium rounded-md transition-colors shadow-sm"
-          >
-            去开启
-          </button>
-          <div v-else class="flex items-center gap-1 text-[#00C853] text-xs font-medium px-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-            已开启
+
+          <!-- 提示 -->
+          <div class="text-xs text-gray-500 dark:text-gray-400 px-1">
+            💡 请先安装 Shizuku 应用，通过无线调试或 ADB 启动服务
           </div>
-        </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- 悬浮窗权限提示 -->
+    <div v-if="!showSettings" class="rounded-lg p-3 border flex items-center justify-between" :class="overlayPermissionValid ? 'bg-green-50 border-green-200 dark:bg-green-500/10 dark:border-green-500/20' : 'bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20'">
+      <div class="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" :class="overlayPermissionValid ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        <span class="text-xs" :class="overlayPermissionValid ? 'text-green-800 dark:text-green-200' : 'text-amber-800 dark:text-amber-200'">
+          {{ overlayPermissionValid ? '悬浮窗权限已开启' : '开启悬浮窗可显示实时状态' }}
+        </span>
+      </div>
+      <template v-if="!overlayPermissionValid">
+        <button 
+          @click="requestOverlayPermission"
+          class="px-2 py-1 text-xs font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+        >
+          去开启 →
+        </button>
+      </template>
+      <div v-else class="flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-medium">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        已开启
       </div>
     </div>
 
@@ -125,15 +178,23 @@
               </div>
               
               <!-- 历史命令选择 -->
-              <div v-if="commandHistory.length > 0" class="flex items-center gap-2">
-                <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">历史:</span>
+              <div v-if="commandHistory.length > 0" class="flex items-center gap-2 min-w-0">
+                <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0">历史:</span>
                 <select 
                   @change="selectHistoryCommand(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
-                  class="flex-1 text-sm rounded-lg p-2 bg-gray-50 border border-gray-300 text-gray-900 focus:border-[#00C853] focus:ring-1 focus:ring-[#00C853] dark:bg-[#121212] dark:border-white/10 dark:text-white"
+                  class="flex-1 min-w-0 text-sm rounded-lg p-2 bg-gray-50 border border-gray-300 text-gray-900 focus:border-[#00C853] focus:ring-1 focus:ring-[#00C853] dark:bg-[#121212] dark:border-white/10 dark:text-white"
+                  style="max-width: 100%;"
                 >
                   <option value="">选择历史命令...</option>
-                  <option v-for="(cmd, index) in commandHistory" :key="index" :value="cmd">{{ cmd }}</option>
+                  <option v-for="(cmd, index) in commandHistory" :key="index" :value="cmd">{{ truncateCommand(cmd, 30) }}</option>
                 </select>
+                <button 
+                  @click="clearHistory"
+                  class="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                  title="清除历史记录"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                </button>
               </div>
 
               <!-- 操作按钮组 -->
@@ -394,6 +455,31 @@ const overlayPermissionValid = ref(false)
 const logContainer = ref<HTMLElement | null>(null)
 const commandHistory = ref<string[]>([])
 
+// Execution mode and Shizuku state
+const executionMode = ref<'accessibility' | 'shizuku'>('accessibility')
+const shizukuStatus = ref({
+    available: false,
+    hasPermission: false,
+    serviceBound: false,
+    uid: -1,
+    privilege: 'UNKNOWN'
+})
+
+// Computed: check if permission setup is needed
+const needsPermissionSetup = computed(() => {
+    if (executionMode.value === 'accessibility') {
+        return !serviceEnabled.value
+    } else {
+        return !shizukuStatus.value.available || !shizukuStatus.value.hasPermission
+    }
+})
+
+// Helper: truncate long command text
+const truncateCommand = (cmd: string, maxLength = 40): string => {
+    if (cmd.length <= maxLength) return cmd
+    return cmd.substring(0, maxLength) + '...'
+}
+
 // Settings State
 const showSettings = ref(false)
 const apiConfigs = ref<ApiConfig[]>([])
@@ -436,9 +522,19 @@ watch(isDark, (val) => {
 
 const startTask = () => {
   if (!taskSchema.value) return
-  if (!serviceEnabled.value) { alert("请先开启无障碍服务"); openAccessibility(); return }
-  if (!overlayPermissionValid.value) { alert("请先开启悬浮窗权限"); requestOverlayPermission(); return }
-  Bridge.startTask(taskSchema.value)
+  
+  if (executionMode.value === 'accessibility') {
+    if (!serviceEnabled.value) { alert("请先开启无障碍服务"); openAccessibility(); return }
+  } else {
+    if (!shizukuStatus.value.available) { alert("请先启动 Shizuku 应用"); return }
+    if (!shizukuStatus.value.hasPermission) { alert("请先授权 Shizuku 权限"); requestShizukuPermission(); return }
+    // 自动绑定 UserService
+    if (!shizukuStatus.value.serviceBound) {
+      bindShizukuService()
+    }
+  }
+  
+  Bridge.startTaskWithMode(taskSchema.value, executionMode.value)
 }
 
 const stopTask = () => Bridge.stopTask()
@@ -460,6 +556,28 @@ const checkPermissions = () => {
     overlayPermissionValid.value = Bridge.checkOverlayPermission()
 }
 
+// --- Shizuku Actions ---
+
+const checkShizukuStatus = () => {
+    try {
+        shizukuStatus.value = Bridge.getShizukuStatus()
+    } catch (e) {
+        console.error('Failed to get Shizuku status', e)
+    }
+}
+
+const requestShizukuPermission = () => {
+    Bridge.requestShizukuPermission()
+    // Re-check status after a delay
+    setTimeout(checkShizukuStatus, 1000)
+}
+
+const bindShizukuService = () => {
+    Bridge.bindShizukuService()
+    // Re-check status after a delay
+    setTimeout(checkShizukuStatus, 1000)
+}
+
 const loadCommandHistory = () => {
     try {
         commandHistory.value = Bridge.getCommandHistory()
@@ -472,6 +590,13 @@ const loadCommandHistory = () => {
 const selectHistoryCommand = (command: string) => {
     if (command) {
         taskSchema.value = command
+    }
+}
+
+const clearHistory = () => {
+    if (confirm('确定要清除所有历史命令吗？')) {
+        Bridge.clearCommandHistory()
+        commandHistory.value = []
     }
 }
 
@@ -643,10 +768,12 @@ onMounted(() => {
   })
   
   checkPermissions()
+  checkShizukuStatus() // Check Shizuku status
   loadApiConfigs() // Load settings on start
   loadCommandHistory() // Load command history
   
   setInterval(checkPermissions, 2000)
+  setInterval(checkShizukuStatus, 3000) // Periodically check Shizuku status
 })
 </script>
 

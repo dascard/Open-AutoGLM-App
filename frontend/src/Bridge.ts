@@ -3,6 +3,7 @@
 // Define the Android interface type
 interface AndroidInterface {
     startTask(task: string): void;
+    startTaskWithMode(task: string, mode: string): void;
     stopTask(): void;
     togglePause(): void;
     isPaused(): boolean;
@@ -14,6 +15,14 @@ interface AndroidInterface {
     saveApiConfig(configJson: string): void;
     deleteApiConfig(id: string): void;
     getCommandHistory(): string;
+    clearCommandHistory(): void;
+    // Shizuku methods
+    checkShizukuAvailable(): boolean;
+    checkShizukuPermission(): boolean;
+    requestShizukuPermission(): void;
+    bindShizukuService(): void;
+    executeAdbCommand(command: string): string;
+    getShizukuStatus(): string;
 }
 
 // Extend Window interface
@@ -28,6 +37,7 @@ declare global {
         updatePauseState?: (isPaused: string) => void;
         showToast?: (message: string) => void;
         openSettings?: (data: string) => void;
+        updateShizukuStatus?: (status: string) => void;
     }
 }
 
@@ -37,6 +47,19 @@ class Bridge {
             window.Android.startTask(task);
         } else {
             console.log('Mock: startTask', task);
+        }
+    }
+
+    static startTaskWithMode(task: string, mode: 'accessibility' | 'shizuku') {
+        if (window.Android) {
+            if ('startTaskWithMode' in window.Android) {
+                (window.Android as AndroidInterface).startTaskWithMode(task, mode);
+            } else {
+                // Fallback to old API
+                window.Android.startTask(task);
+            }
+        } else {
+            console.log('Mock: startTaskWithMode', task, mode);
         }
     }
 
@@ -115,6 +138,14 @@ class Bridge {
         }
     }
 
+    static clearCommandHistory() {
+        if (window.Android) {
+            window.Android.clearCommandHistory();
+        } else {
+            console.log('Mock: clearCommandHistory');
+        }
+    }
+
     // Register callbacks from Vue components
     static onLogUpdate(callback: (logs: any[]) => void) {
         window.updateLogs = (json: string) => {
@@ -151,6 +182,71 @@ class Bridge {
         window.openSettings = () => {
             callback();
         }
+    }
+
+    // --- Shizuku Methods ---
+
+    static checkShizukuAvailable(): boolean {
+        if (window.Android) {
+            return window.Android.checkShizukuAvailable();
+        }
+        return false; // Mock
+    }
+
+    static checkShizukuPermission(): boolean {
+        if (window.Android) {
+            return window.Android.checkShizukuPermission();
+        }
+        return false; // Mock
+    }
+
+    static requestShizukuPermission() {
+        if (window.Android) {
+            window.Android.requestShizukuPermission();
+        } else {
+            console.log('Mock: requestShizukuPermission');
+        }
+    }
+
+    static bindShizukuService() {
+        if (window.Android) {
+            window.Android.bindShizukuService();
+        } else {
+            console.log('Mock: bindShizukuService');
+        }
+    }
+
+    static executeAdbCommand(command: string): string {
+        if (window.Android) {
+            return window.Android.executeAdbCommand(command);
+        }
+        console.log('Mock: executeAdbCommand', command);
+        return 'Mock result';
+    }
+
+    static getShizukuStatus(): any {
+        if (window.Android) {
+            const json = window.Android.getShizukuStatus();
+            return JSON.parse(json);
+        }
+        // Mock status
+        return {
+            available: false,
+            hasPermission: false,
+            serviceBound: false,
+            uid: -1,
+            privilege: 'UNKNOWN'
+        };
+    }
+
+    static onShizukuStatusUpdate(callback: (status: any) => void) {
+        window.updateShizukuStatus = (json: string) => {
+            try {
+                callback(JSON.parse(json));
+            } catch (e) {
+                console.error('Failed to parse Shizuku status', e);
+            }
+        };
     }
 }
 
