@@ -7,6 +7,8 @@ import com.autoglm.app.util.FileLogger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -14,806 +16,1150 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.ByteArrayOutputStream
-import java.util.concurrent.TimeUnit
 
-/**
- * 重试配置
- */
+/** 重试配置 */
 data class RetryConfig(
-    val maxRetries: Int = 3,
-    val initialDelayMs: Long = 1000,
-    val maxDelayMs: Long = 10000,
-    val multiplier: Double = 2.0
+        val maxRetries: Int = 3,
+        val initialDelayMs: Long = 1000,
+        val maxDelayMs: Long = 10000,
+        val multiplier: Double = 2.0
 )
 
-/**
- * AI API 客户端
- * 支持多 API 轮询、随机选择、故障转移
- */
+/** AI API 客户端 支持多 API 轮询、随机选择、故障转移 */
 class AIClient(
-    private val apiConfigs: List<ApiConfig>,
-    private val retryConfig: RetryConfig = RetryConfig()
+        private val apiConfigs: List<ApiConfig>,
+        private val retryConfig: RetryConfig = RetryConfig()
 ) {
-    companion object {
-        private const val TAG = "AIClient"
-    }
-    
-    private val enabledConfigs: List<ApiConfig>
-        get() = apiConfigs.filter { it.enabled }
-    
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
-    
-    private val gson = Gson()
-    
-    // 记录失败的 API，避免短时间内重复使用
-    private val failedApis = mutableMapOf<String, Long>()
-    private val failureCooldownMs = 60_000L  // 失败后冷却 60 秒
-    
-    /**
-     * 分析屏幕截图并获取下一步动作
-     * 使用多 API 轮询策略
-     */
-    suspend fun analyzeScreenAndPlan(
-        screenshot: Bitmap,
-        task: String,
-        previousActions: List<String> = emptyList()
-    ): AIResponse = withContext(Dispatchers.IO) {
-        val availableConfigs = getAvailableConfigs()
-        
-        if (availableConfigs.isEmpty()) {
-            throw Exception("没有可用的 API 配置，请在设置中添加")
+        companion object {
+                private const val TAG = "AIClient"
         }
-        
-        // 随机打乱顺序（考虑优先级）
-        val shuffledConfigs = availableConfigs
-            .sortedByDescending { it.priority }
-            .groupBy { it.priority }
-            .flatMap { (_, configs) -> configs.shuffled() }
-        
-        var lastException: Exception? = null
-        
-        for (config in shuffledConfigs) {
-            try {
-                Log.d(TAG, "尝试使用 API: ${config.name} (${config.provider.displayName})")
-                val result = makeApiCallWithRetry(config, screenshot, task, previousActions)
-                // 成功，清除失败记录
-                failedApis.remove(config.id)
-                return@withContext result
-            } catch (e: Exception) {
-                Log.w(TAG, "API ${config.name} 调用失败: ${e.message}")
-                lastException = e
-                // 记录失败
-                failedApis[config.id] = System.currentTimeMillis()
-            }
-        }
-        
-        throw lastException ?: Exception("所有 API 调用均失败")
-    }
-    
-    /**
-     * 获取当前可用的 API 配置（排除冷却中的）
-     */
-    private fun getAvailableConfigs(): List<ApiConfig> {
-        val now = System.currentTimeMillis()
-        return enabledConfigs.filter { config ->
-            val failTime = failedApis[config.id]
-            failTime == null || (now - failTime) > failureCooldownMs
-        }
-    }
-    
-    /**
-     * 带重试的 API 调用
-     */
-    private suspend fun makeApiCallWithRetry(
-        config: ApiConfig,
-        screenshot: Bitmap,
-        task: String,
-        previousActions: List<String>
-    ): AIResponse {
-        var lastException: Exception? = null
-        var delayMs = retryConfig.initialDelayMs
-        
-        repeat(retryConfig.maxRetries) { attempt ->
-            try {
-                Log.d(TAG, "API ${config.name} 尝试 ${attempt + 1}/${retryConfig.maxRetries}")
-                return makeApiCall(config, screenshot, task, previousActions)
-            } catch (e: Exception) {
-                lastException = e
-                
-                if (!isRetryableError(e)) {
-                    throw e
+
+        private val enabledConfigs: List<ApiConfig>
+                get() = apiConfigs.filter { it.enabled }
+
+        private val client =
+                OkHttpClient.Builder()
+                        .connectTimeout(30, TimeUnit.SECONDS)
+                        .readTimeout(60, TimeUnit.SECONDS)
+                        .writeTimeout(30, TimeUnit.SECONDS)
+                        .build()
+
+        private val gson = Gson()
+
+        // 记录失败的 API，避免短时间内重复使用
+        private val failedApis = mutableMapOf<String, Long>()
+        private val failureCooldownMs = 60_000L // 失败后冷却 60 秒
+
+        /** 分析屏幕截图并获取下一步动作 使用多 API 轮询策略 */
+        suspend fun analyzeScreenAndPlan(
+                screenshot: Bitmap,
+                task: String,
+                previousActions: List<String> = emptyList()
+        ): AIResponse =
+                withContext(Dispatchers.IO) {
+                        val availableConfigs = getAvailableConfigs()
+
+                        if (availableConfigs.isEmpty()) {
+                                throw Exception("没有可用的 API 配置，请在设置中添加")
+                        }
+
+                        // 随机打乱顺序（考虑优先级）
+                        val shuffledConfigs =
+                                availableConfigs
+                                        .sortedByDescending { it.priority }
+                                        .groupBy { it.priority }
+                                        .flatMap { (_, configs) -> configs.shuffled() }
+
+                        var lastException: Exception? = null
+
+                        for (config in shuffledConfigs) {
+                                try {
+                                        Log.d(
+                                                TAG,
+                                                "尝试使用 API: ${config.name} (${config.provider.displayName})"
+                                        )
+                                        val result =
+                                                makeApiCallWithRetry(
+                                                        config,
+                                                        screenshot,
+                                                        task,
+                                                        previousActions
+                                                )
+                                        // 成功，清除失败记录
+                                        failedApis.remove(config.id)
+                                        return@withContext result
+                                } catch (e: Exception) {
+                                        Log.w(TAG, "API ${config.name} 调用失败: ${e.message}")
+                                        lastException = e
+                                        // 记录失败
+                                        failedApis[config.id] = System.currentTimeMillis()
+                                }
+                        }
+
+                        throw lastException ?: Exception("所有 API 调用均失败")
                 }
-                
-                if (attempt < retryConfig.maxRetries - 1) {
-                    Log.d(TAG, "等待 ${delayMs}ms 后重试...")
-                    delay(delayMs)
-                    delayMs = (delayMs * retryConfig.multiplier).toLong()
-                        .coerceAtMost(retryConfig.maxDelayMs)
+
+        /** 获取当前可用的 API 配置（排除冷却中的） */
+        private fun getAvailableConfigs(): List<ApiConfig> {
+                val now = System.currentTimeMillis()
+                return enabledConfigs.filter { config ->
+                        val failTime = failedApis[config.id]
+                        failTime == null || (now - failTime) > failureCooldownMs
                 }
-            }
         }
-        
-        throw lastException ?: Exception("API 调用失败")
-    }
-    
-    /**
-     * 判断错误是否可重试
-     */
-    private fun isRetryableError(e: Exception): Boolean {
-        // 致命错误不可重试
-        if (isFatalError(e)) return false
-        
-        val message = e.message?.lowercase() ?: return false
-        return when {
-            message.contains("timeout") -> true
-            message.contains("connection") -> true
-            message.contains("socket") -> true
-            message.contains("500") -> true
-            message.contains("502") -> true
-            message.contains("503") -> true
-            message.contains("504") -> true
-            message.contains("429") -> true
-            message.contains("rate limit") -> true
-            else -> false
+
+        /** 带重试的 API 调用 */
+        private suspend fun makeApiCallWithRetry(
+                config: ApiConfig,
+                screenshot: Bitmap,
+                task: String,
+                previousActions: List<String>
+        ): AIResponse {
+                var lastException: Exception? = null
+                var delayMs = retryConfig.initialDelayMs
+
+                repeat(retryConfig.maxRetries) { attempt ->
+                        try {
+                                Log.d(
+                                        TAG,
+                                        "API ${config.name} 尝试 ${attempt + 1}/${retryConfig.maxRetries}"
+                                )
+                                return makeApiCall(config, screenshot, task, previousActions)
+                        } catch (e: Exception) {
+                                lastException = e
+
+                                if (!isRetryableError(e)) {
+                                        throw e
+                                }
+
+                                if (attempt < retryConfig.maxRetries - 1) {
+                                        Log.d(TAG, "等待 ${delayMs}ms 后重试...")
+                                        delay(delayMs)
+                                        delayMs =
+                                                (delayMs * retryConfig.multiplier)
+                                                        .toLong()
+                                                        .coerceAtMost(retryConfig.maxDelayMs)
+                                }
+                        }
+                }
+
+                throw lastException ?: Exception("API 调用失败")
         }
-    }
-    
-    /**
-     * 判断是否为致命错误（账户级别问题，不应无限重试）
-     * 包括：余额不足、额度耗尽、认证失败、账户被禁用等
-     */
-    fun isFatalError(e: Exception): Boolean {
-        val message = e.message?.lowercase() ?: return false
-        return when {
-            // 余额/额度相关
-            message.contains("insufficient") -> true
-            message.contains("quota") -> true
-            message.contains("balance") -> true
-            message.contains("余额") -> true
-            message.contains("额度") -> true
-            message.contains("credit") -> true
-            message.contains("billing") -> true
-            // 认证相关
-            message.contains("401") -> true
-            message.contains("403") -> true
-            message.contains("unauthorized") -> true
-            message.contains("forbidden") -> true
-            message.contains("invalid api key") -> true
-            message.contains("invalid_api_key") -> true
-            message.contains("authentication") -> true
-            // 账户状态
-            message.contains("account") && (message.contains("disabled") || message.contains("suspended") || message.contains("banned")) -> true
-            message.contains("账户") -> true
-            message.contains("账号") -> true
-            else -> false
+
+        /** 判断错误是否可重试 */
+        private fun isRetryableError(e: Exception): Boolean {
+                // 致命错误不可重试
+                if (isFatalError(e)) return false
+
+                val message = e.message?.lowercase() ?: return false
+                return when {
+                        message.contains("timeout") -> true
+                        message.contains("connection") -> true
+                        message.contains("socket") -> true
+                        message.contains("500") -> true
+                        message.contains("502") -> true
+                        message.contains("503") -> true
+                        message.contains("504") -> true
+                        message.contains("429") -> true
+                        message.contains("rate limit") -> true
+                        // 解析错误也可以重试（可能是模型输出格式不对或被截断）
+                        message.contains("无法解析") -> true
+                        message.contains("parse error") -> true
+                        message.contains("json") -> true
+                        else -> false
+                }
         }
-    }
-    
-    /**
-     * 执行 API 调用
-     */
-    private suspend fun makeApiCall(
-        config: ApiConfig,
-        screenshot: Bitmap,
-        task: String,
-        previousActions: List<String>
-    ): AIResponse {
-        val base64Image = bitmapToBase64(screenshot)
-        
-        // 根据不同提供商构建请求
-        val (request, parseResponse) = when (config.provider) {
-            AIProvider.CLAUDE -> buildClaudeRequest(config, base64Image, task, previousActions)
-            AIProvider.GEMINI -> buildGeminiRequest(config, base64Image, task, previousActions)
-            else -> buildOpenAICompatibleRequest(config, base64Image, task, previousActions)
+
+        /** 判断是否为致命错误（账户级别问题，不应无限重试） 包括：余额不足、额度耗尽、认证失败、账户被禁用等 */
+        fun isFatalError(e: Exception): Boolean {
+                val message = e.message?.lowercase() ?: return false
+                return when {
+                        // 余额/额度相关
+                        message.contains("insufficient") -> true
+                        message.contains("quota") -> true
+                        message.contains("balance") -> true
+                        message.contains("余额") -> true
+                        message.contains("额度") -> true
+                        message.contains("credit") -> true
+                        message.contains("billing") -> true
+                        // 认证相关
+                        message.contains("401") -> true
+                        message.contains("403") -> true
+                        message.contains("unauthorized") -> true
+                        message.contains("forbidden") -> true
+                        message.contains("invalid api key") -> true
+                        message.contains("invalid_api_key") -> true
+                        message.contains("authentication") -> true
+                        // 账户状态
+                        message.contains("account") &&
+                                (message.contains("disabled") ||
+                                        message.contains("suspended") ||
+                                        message.contains("banned")) -> true
+                        message.contains("账户") -> true
+                        message.contains("账号") -> true
+                        else -> false
+                }
         }
-        
-        FileLogger.logApiRequest(TAG, config.provider.displayName, config.model, config.endpoint)
-        
-        val response = client.newCall(request).execute()
-        val responseBody = response.body?.string() ?: throw Exception("空响应")
-        
-        FileLogger.logApiResponse(TAG, response.code, responseBody)
-        
-        if (!response.isSuccessful) {
-            val errorMsg = parseErrorMessage(responseBody, response.code)
-            throw Exception(errorMsg)
-        }
-        
-        return parseResponse(responseBody)
-    }
-    
-    /**
-     * 构建 OpenAI 兼容格式请求（智谱、OpenAI、通义千问等）
-     */
-    private fun buildOpenAICompatibleRequest(
-        config: ApiConfig,
-        base64Image: String,
-        task: String,
-        previousActions: List<String>
-    ): Pair<Request, (String) -> AIResponse> {
-        val systemPrompt = getSystemPrompt()
-        val userMessage = getUserMessage(task, previousActions)
-        
-        val requestJson = JsonObject().apply {
-            addProperty("model", config.model)
-            addProperty("stream", false)  // 禁用流式传输
-            add("messages", gson.toJsonTree(listOf(
-                mapOf("role" to "system", "content" to systemPrompt),
-                mapOf(
-                    "role" to "user",
-                    "content" to listOf(
-                        mapOf("type" to "text", "text" to userMessage),
-                        mapOf(
-                            "type" to "image_url",
-                            "image_url" to mapOf("url" to "data:image/jpeg;base64,$base64Image")
-                        )
-                    )
+
+        /** 执行 API 调用 */
+        private suspend fun makeApiCall(
+                config: ApiConfig,
+                screenshot: Bitmap,
+                task: String,
+                previousActions: List<String>
+        ): AIResponse {
+                val base64Image = bitmapToBase64(screenshot)
+
+                // 根据不同提供商构建请求
+                val (request, parseResponse) =
+                        when (config.provider) {
+                                AIProvider.CLAUDE ->
+                                        buildClaudeRequest(
+                                                config,
+                                                base64Image,
+                                                task,
+                                                previousActions
+                                        )
+                                AIProvider.GEMINI ->
+                                        buildGeminiRequest(
+                                                config,
+                                                base64Image,
+                                                task,
+                                                previousActions
+                                        )
+                                else ->
+                                        buildOpenAICompatibleRequest(
+                                                config,
+                                                base64Image,
+                                                task,
+                                                previousActions
+                                        )
+                        }
+
+                FileLogger.logApiRequest(
+                        TAG,
+                        config.provider.displayName,
+                        config.model,
+                        config.endpoint
                 )
-            )))
-            addProperty("max_tokens", 512)
-            addProperty("temperature", 0.1)
+
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: throw Exception("空响应")
+
+                FileLogger.logApiResponse(TAG, response.code, responseBody)
+
+                if (!response.isSuccessful) {
+                        val errorMsg = parseErrorMessage(responseBody, response.code)
+                        throw Exception(errorMsg)
+                }
+
+                return parseResponse(responseBody)
         }
-        
-        val request = Request.Builder()
-            .url(config.endpoint)
-            .addHeader("Authorization", "Bearer ${config.apiKey}")
-            .addHeader("Content-Type", "application/json")
-            .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-        
-        return Pair(request, ::parseOpenAIResponse)
-    }
-    
-    /**
-     * 构建 Claude 请求
-     */
-    private fun buildClaudeRequest(
-        config: ApiConfig,
-        base64Image: String,
-        task: String,
-        previousActions: List<String>
-    ): Pair<Request, (String) -> AIResponse> {
-        val userMessage = getUserMessage(task, previousActions)
-        
-        val requestJson = JsonObject().apply {
-            addProperty("model", config.model)
-            addProperty("max_tokens", 512)
-            addProperty("stream", false)  // 禁用流式传输
-            addProperty("system", getSystemPrompt())
-            add("messages", gson.toJsonTree(listOf(
-                mapOf(
-                    "role" to "user",
-                    "content" to listOf(
-                        mapOf(
-                            "type" to "image",
-                            "source" to mapOf(
-                                "type" to "base64",
-                                "media_type" to "image/jpeg",
-                                "data" to base64Image
-                            )
-                        ),
-                        mapOf("type" to "text", "text" to userMessage)
-                    )
-                )
-            )))
+
+        /** 构建 OpenAI 兼容格式请求（智谱、OpenAI、通义千问等） */
+        private fun buildOpenAICompatibleRequest(
+                config: ApiConfig,
+                base64Image: String,
+                task: String,
+                previousActions: List<String>
+        ): Pair<Request, (String) -> AIResponse> {
+                val systemPrompt = getSystemPrompt()
+                val userMessage = getUserMessage(task, previousActions)
+
+                val requestJson =
+                        JsonObject().apply {
+                                addProperty("model", config.model)
+                                addProperty("stream", false) // 禁用流式传输
+                                add(
+                                        "messages",
+                                        gson.toJsonTree(
+                                                listOf(
+                                                        mapOf(
+                                                                "role" to "system",
+                                                                "content" to systemPrompt
+                                                        ),
+                                                        mapOf(
+                                                                "role" to "user",
+                                                                "content" to
+                                                                        listOf(
+                                                                                mapOf(
+                                                                                        "type" to
+                                                                                                "text",
+                                                                                        "text" to
+                                                                                                userMessage
+                                                                                ),
+                                                                                mapOf(
+                                                                                        "type" to
+                                                                                                "image_url",
+                                                                                        "image_url" to
+                                                                                                mapOf(
+                                                                                                        "url" to
+                                                                                                                "data:image/jpeg;base64,$base64Image"
+                                                                                                )
+                                                                                )
+                                                                        )
+                                                        )
+                                                )
+                                        )
+                                )
+                                addProperty("max_tokens", 1024)
+                                addProperty("temperature", 0.1)
+                        }
+
+                val request =
+                        Request.Builder()
+                                .url(config.endpoint)
+                                .addHeader("Authorization", "Bearer ${config.apiKey}")
+                                .addHeader("Content-Type", "application/json")
+                                .post(
+                                        requestJson
+                                                .toString()
+                                                .toRequestBody("application/json".toMediaType())
+                                )
+                                .build()
+
+                return Pair(request, ::parseOpenAIResponse)
         }
-        
-        val request = Request.Builder()
-            .url(config.endpoint)
-            .addHeader("x-api-key", config.apiKey)
-            .addHeader("anthropic-version", "2023-06-01")
-            .addHeader("Content-Type", "application/json")
-            .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-        
-        return Pair(request, ::parseClaudeResponse)
-    }
-    
-    /**
-     * 构建 Gemini 请求
-     */
-    private fun buildGeminiRequest(
-        config: ApiConfig,
-        base64Image: String,
-        task: String,
-        previousActions: List<String>
-    ): Pair<Request, (String) -> AIResponse> {
-        val userMessage = "${getSystemPrompt()}\n\n${getUserMessage(task, previousActions)}"
-        
-        val requestJson = JsonObject().apply {
-            add("contents", gson.toJsonTree(listOf(
-                mapOf(
-                    "parts" to listOf(
-                        mapOf("text" to userMessage),
-                        mapOf(
-                            "inline_data" to mapOf(
-                                "mime_type" to "image/jpeg",
-                                "data" to base64Image
-                            )
-                        )
-                    )
-                )
-            )))
+
+        /** 构建 Claude 请求 */
+        private fun buildClaudeRequest(
+                config: ApiConfig,
+                base64Image: String,
+                task: String,
+                previousActions: List<String>
+        ): Pair<Request, (String) -> AIResponse> {
+                val userMessage = getUserMessage(task, previousActions)
+
+                val requestJson =
+                        JsonObject().apply {
+                                addProperty("model", config.model)
+                                addProperty("max_tokens", 1024)
+                                addProperty("stream", false) // 禁用流式传输
+                                addProperty("system", getSystemPrompt())
+                                add(
+                                        "messages",
+                                        gson.toJsonTree(
+                                                listOf(
+                                                        mapOf(
+                                                                "role" to "user",
+                                                                "content" to
+                                                                        listOf(
+                                                                                mapOf(
+                                                                                        "type" to
+                                                                                                "image",
+                                                                                        "source" to
+                                                                                                mapOf(
+                                                                                                        "type" to
+                                                                                                                "base64",
+                                                                                                        "media_type" to
+                                                                                                                "image/jpeg",
+                                                                                                        "data" to
+                                                                                                                base64Image
+                                                                                                )
+                                                                                ),
+                                                                                mapOf(
+                                                                                        "type" to
+                                                                                                "text",
+                                                                                        "text" to
+                                                                                                userMessage
+                                                                                )
+                                                                        )
+                                                        )
+                                                )
+                                        )
+                                )
+                        }
+
+                val request =
+                        Request.Builder()
+                                .url(config.endpoint)
+                                .addHeader("x-api-key", config.apiKey)
+                                .addHeader("anthropic-version", "2023-06-01")
+                                .addHeader("Content-Type", "application/json")
+                                .post(
+                                        requestJson
+                                                .toString()
+                                                .toRequestBody("application/json".toMediaType())
+                                )
+                                .build()
+
+                return Pair(request, ::parseClaudeResponse)
         }
-        
-        val url = "${config.endpoint}?key=${config.apiKey}"
-        
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("Content-Type", "application/json")
-            .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-        
-        return Pair(request, ::parseGeminiResponse)
-    }
-    
-    // 屏幕尺寸，用于坐标转换
-    private var screenWidth = 1080
-    private var screenHeight = 2400
-    
-    /**
-     * 设置屏幕尺寸（从截图获取）
-     */
-    fun setScreenSize(width: Int, height: Int) {
-        screenWidth = width
-        screenHeight = height
-    }
-    
-    /**
-     * 将归一化坐标 (0-999) 转换为像素坐标
-     */
-    private fun normalizedToPixel(normalizedX: Int, normalizedY: Int): Pair<Int, Int> {
-        val pixelX = (normalizedX * screenWidth / 1000).coerceIn(0, screenWidth - 1)
-        val pixelY = (normalizedY * screenHeight / 1000).coerceIn(0, screenHeight - 1)
-        return Pair(pixelX, pixelY)
-    }
-    
-    private fun getSystemPrompt(): String {
-        val dateFormat = java.text.SimpleDateFormat("yyyy年MM月dd日 EEEE", java.util.Locale.CHINESE)
-        val today = dateFormat.format(java.util.Date())
-        
-        return """
-今天的日期是: $today
-你是一个智能体分析专家，可以根据操作历史和当前状态图执行一系列操作来完成任务。
 
-【重要】你必须严格按照以下格式输出：
-<think>你的思考过程，说明为什么选择这个操作</think>
-<answer>do(action="操作类型", ...)</answer>
+        /** 构建 Gemini 请求 */
+        private fun buildGeminiRequest(
+                config: ApiConfig,
+                base64Image: String,
+                task: String,
+                previousActions: List<String>
+        ): Pair<Request, (String) -> AIResponse> {
+                val userMessage = "${getSystemPrompt()}\n\n${getUserMessage(task, previousActions)}"
 
-操作指令：
-- do(action="Launch", app="应用名") - 【推荐】直接启动应用，支持中英文名称
-- do(action="Tap", element=[x,y]) - 点击坐标(0-999归一化坐标)
-- do(action="Tap", element=[x,y], message="说明") - 敏感点击，暂停等待确认
-- do(action="Type", text="xxx") - 输入文本
-- do(action="Enter") - 【推荐】按下输入法确认键（搜索/发送/下一步），比点击按钮更精准
-- do(action="Swipe", start=[x1,y1], end=[x2,y2]) - 滑动
-- do(action="Long Press", element=[x,y]) - 长按
-- do(action="Back") - 返回
-- do(action="Home") - 回桌面
-- do(action="Wait", duration="x seconds") - 等待x秒
-- ask_user(reason="原因") - 请求用户介入
-- finish(message="完成信息") - 任务完成
+                val requestJson =
+                        JsonObject().apply {
+                                add(
+                                        "contents",
+                                        gson.toJsonTree(
+                                                listOf(
+                                                        mapOf(
+                                                                "parts" to
+                                                                        listOf(
+                                                                                mapOf(
+                                                                                        "text" to
+                                                                                                userMessage
+                                                                                ),
+                                                                                mapOf(
+                                                                                        "inline_data" to
+                                                                                                mapOf(
+                                                                                                        "mime_type" to
+                                                                                                                "image/jpeg",
+                                                                                                        "data" to
+                                                                                                                base64Image
+                                                                                                )
+                                                                                )
+                                                                        )
+                                                        )
+                                                )
+                                        )
+                                )
+                        }
 
-规则：
-1. 【最重要】需要打开应用时，优先使用 Launch 操作，而不是点击图标, 软件的名称未必和用户输入的yi一模一样,可能有出入也可能是英文,比如谷歌浏览器其实是Chrome
-2. 先检查当前界面是否符合预期
-3. 无关页面执行 Back
-4. 找不到目标可尝试 Swipe 滑动查找
-5. 涉及密码/验证码/支付 -> 使用 ask_user
-6. 当处于 AutoGLM 软件内时，使用 Home 操作
-7. 如果 Launch 失败（历史中有失败记录），改用 Tap 点击图标
+                val url = "${config.endpoint}?key=${config.apiKey}"
 
-【示例1 - 打开应用】
-<think>任务需要打开浏览器，使用 Launch 直接启动</think>
-<answer>do(action="Launch", app="浏览器")</answer>
+                val request =
+                        Request.Builder()
+                                .url(url)
+                                .addHeader("Content-Type", "application/json")
+                                .post(
+                                        requestJson
+                                                .toString()
+                                                .toRequestBody("application/json".toMediaType())
+                                )
+                                .build()
 
-【示例2 - 点击操作】
-<think>当前在浏览器中，需要点击搜索框，搜索框在屏幕上方中央</think>
-<answer>do(action="Tap", element=[500,150])</answer>
+                return Pair(request, ::parseGeminiResponse)
+        }
+
+        // 屏幕尺寸，用于坐标转换
+        private var screenWidth = 1080
+        private var screenHeight = 2400
+
+        /** 设置屏幕尺寸（从截图获取） */
+        fun setScreenSize(width: Int, height: Int) {
+                screenWidth = width
+                screenHeight = height
+        }
+
+        /** 将归一化坐标 (0-999) 转换为像素坐标 */
+        private fun normalizedToPixel(normalizedX: Int, normalizedY: Int): Pair<Int, Int> {
+                val pixelX = (normalizedX * screenWidth / 1000).coerceIn(0, screenWidth - 1)
+                val pixelY = (normalizedY * screenHeight / 1000).coerceIn(0, screenHeight - 1)
+                return Pair(pixelX, pixelY)
+        }
+
+        /** 统一系统提示词生成 - 自动判断是否使用 Mark */
+        private fun getUnifiedSystemPrompt(): String {
+                val dateFormat =
+                        java.text.SimpleDateFormat("yyyy年MM月dd日 EEEE", java.util.Locale.CHINESE)
+                val today = dateFormat.format(java.util.Date())
+
+                return """
+# AutoGLM Android 助手
+今天是 $today
+
+## 核心规则
+1. **优先使用标记 (Mark)**：
+    -   **必须优先**检查截图中是否包含**粉色数字标记**。
+    -   **如果存在标记**：你**必须**使用 `mark=编号` 进行操作（如 `do(action="Tap", mark=5)`）。此时**严禁**使用坐标。
+    -   **如果不存在标记**：使用**归一化坐标** [0-1000]（如 `do(action="Tap", element=[500,500])`）。
+2. **坐标仅限滑动**：`Swipe` 操作始终使用 `[x,y]` 坐标。
+3. **思考后行动**：先在 `<think>` 中简述分析，再在 `<act>` 中输出单行或多行代码。
+4. 打开应用APP必须优先使用Launch，失败后才使用Tap。
+5. **回复格式**: 你的回复中必须包含 `<think>` 和 `<act>` 两部分，且 `<act>` 中必须包含至少一个动作。
+6. **输出长度**: 你的回复不长度不应该超过512 tokens
+
+## 动作指令表
+| 意图 | 指令格式 | 说明 |
+| :--- | :--- | :--- |
+| **点击(标记)** | `do(action="Tap", mark=编号)` | **首选**。仅当界面有标记时使用。 |
+| **点击(坐标)** | `do(action="Tap", element=[x,y])` | **备选**。仅当界面无标记时使用（范围0-1000）。 |
+| **滑动** | `do(action="Swipe", start=[x1,y1], end=[x2,y2])` | 必须使用坐标。 |
+| **输入** | `do(action="Type", text="内容")` | |
+| **按键** | `do(action="Enter/Back/Home")` | |
+| **打开** | `do(action="Launch", app="应用名")` | |
+| **询问** | `ask_user(reason="原因")` | |
+| **结束** | `finish(message="完成说明")` | |
+
+## 规则
+- Launch 失败过 → 改用 Tap 点击图标
+- 无关页面 → 执行 Back
+- 找不到目标 → Swipe 滑动查找
+- 涉及密码/验证码/支付 → ask_user
+
+## 输出示例
+**场景1：界面有标记（优先）**
+<think>界面上有粉色标记，我想点击第5个选项(标记5)。</think>
+<act>do(action="Tap", mark=5)</act>
+
+**场景2：界面无标记（使用坐标）**
+<think>界面无标记，需要点击中间的按钮。</think>
+<act>do(action="Tap", element=[500,500])</act>
+
+**场景3：多步操作**
+<think>先点击搜索框(标记3)，输入内容，再点搜索。</think>
+<act>
+do(action="Tap", mark=3)
+do(action="Type", text="天气")
+do(action="Enter")
+</act>
+
+---
+请根据当前截图状态执行下一步。
         """.trimIndent()
-    }
-    
-    private fun getUserMessage(task: String, previousActions: List<String>): String = buildString {
-        append("任务: $task\n")
-        if (previousActions.isNotEmpty()) {
-            append("已执行: ${previousActions.takeLast(5).joinToString(" -> ")}\n")
-            val homeCount = previousActions.takeLast(3).count { it.contains("Home") }
-            if (homeCount >= 2) {
-                append("【禁止再按Home！】\n")
-            }
-            // 检查 Launch 失败
-            if (previousActions.any { it.contains("Launch失败") }) {
-                append("【Launch失败过，请改用 Tap 点击图标】\n")
-            }
         }
-        append("\n请分析屏幕并输出操作:")
-    }
-    
-    private fun parseOpenAIResponse(responseBody: String): AIResponse {
-        val json = JsonParser.parseString(responseBody).asJsonObject
-        val content = json.getAsJsonArray("choices")[0].asJsonObject
-            .getAsJsonObject("message")
-            .get("content").asString
-        return parseActionFromContent(content)
-    }
-    
-    private fun parseClaudeResponse(responseBody: String): AIResponse {
-        val json = JsonParser.parseString(responseBody).asJsonObject
-        val content = json.getAsJsonArray("content")[0].asJsonObject
-            .get("text").asString
-        return parseActionFromContent(content)
-    }
-    
-    private fun parseGeminiResponse(responseBody: String): AIResponse {
-        val json = JsonParser.parseString(responseBody).asJsonObject
-        val content = json.getAsJsonArray("candidates")[0].asJsonObject
-            .getAsJsonObject("content")
-            .getAsJsonArray("parts")[0].asJsonObject
-            .get("text").asString
-        return parseActionFromContent(content)
-    }
-    
-    private fun parseActionFromContent(content: String): AIResponse {
-        Log.i(TAG, "========== AI 返回内容 ==========")
-        Log.i(TAG, content)
-        Log.i(TAG, "==================================")
-        FileLogger.d(TAG, "AI 原始响应: $content")
-        
-        // 0. 提取 think 标签内容（AI 思考过程）
-        val thinkPattern = Regex("""<think>\s*(.*?)\s*</think>""", RegexOption.DOT_MATCHES_ALL)
-        val thinkMatch = thinkPattern.find(content)
-        val thinking = thinkMatch?.groupValues?.get(1)?.trim()
-        if (thinking != null) {
-            Log.d(TAG, "AI 思考: $thinking")
-        }
-        
-        // 1. 提取 status（如果有）
-        val statusPattern = Regex("""status:\s*(.+?)(?:\n|$)""", RegexOption.IGNORE_CASE)
-        val statusMatch = statusPattern.find(content)
-        val status = statusMatch?.groupValues?.get(1)?.trim() ?: ""
-        
-        // 2. 提取所有 actions 行
-        val actionsPattern = Regex("""(?:actions:[\s\S]*?)?-\s*((?:do|finish|ask_user)\s*\([^)]+\))""", RegexOption.IGNORE_CASE)
-        val actionMatches = actionsPattern.findAll(content).toList()
-        
-        val actions = mutableListOf<Action>()
-        
-        if (actionMatches.isNotEmpty()) {
-            Log.d(TAG, "找到 ${actionMatches.size} 个操作")
-            for (match in actionMatches) {
-                val actionStr = match.groupValues[1]
-                val parsedAction = tryParseFromText(actionStr)
-                if (parsedAction != null) {
-                    actions.add(parsedAction)
-                    Log.d(TAG, "解析操作: $parsedAction")
+
+        /** 统一用户消息生成 */
+        private fun getUnifiedUserMessage(task: String, previousActions: List<String>): String =
+                buildString {
+                        append("任务: $task\n")
+                        if (previousActions.isNotEmpty()) {
+                                append("已执行: ${previousActions.takeLast(3).joinToString(" → ")}\n")
+                                // 检查 Home 循环
+                                val homeCount =
+                                        previousActions.takeLast(3).count { it.contains("Home") }
+                                if (homeCount >= 2) {
+                                        append("【禁止再按Home！】\n")
+                                }
+                                // 检查 Launch 失败
+                                if (previousActions.any { it.contains("Launch失败") }) {
+                                        append("【Launch失败过，请改用 Tap 点击图标】\n")
+                                }
+                        }
+                        append("请分析截图并执行下一步。如果看到粉色数字标记，请优先使用 mark=编号。")
                 }
-            }
+
+        // 兼容旧调用 - 无障碍模式
+        private fun getSystemPrompt(): String = getUnifiedSystemPrompt()
+        private fun getUserMessage(task: String, previousActions: List<String>): String =
+                getUnifiedUserMessage(task, previousActions)
+
+        private fun parseOpenAIResponse(responseBody: String): AIResponse {
+                val json = JsonParser.parseString(responseBody).asJsonObject
+                val content =
+                        json.getAsJsonArray("choices")[0]
+                                .asJsonObject
+                                .getAsJsonObject("message")
+                                .get("content")
+                                .asString
+                return parseUnifiedResponse(content)
         }
-        
-        // 3. 如果没有找到 actions 格式，尝试备用解析
-        if (actions.isEmpty()) {
-            val fallbackAction = tryParseFromText(content)
-            if (fallbackAction != null) {
-                return AIResponse(action = fallbackAction, status = status, thinking = thinking)
-            }
+
+        private fun parseClaudeResponse(responseBody: String): AIResponse {
+                val json = JsonParser.parseString(responseBody).asJsonObject
+                val content = json.getAsJsonArray("content")[0].asJsonObject.get("text").asString
+                return parseUnifiedResponse(content)
         }
-        
-        // 4. 返回结果
-        if (actions.isNotEmpty()) {
-            FileLogger.d(TAG, "解析成功: ${actions.size} 个操作, status=$status, thinking=${thinking?.take(50)}")
-            return AIResponse(
-                action = actions.first(),
-                actions = actions,
-                status = status,
-                thinking = thinking,
-                rawResponse = content.take(500)  // 保存原始响应（截取前500字符）
-            )
+
+        private fun parseGeminiResponse(responseBody: String): AIResponse {
+                val json = JsonParser.parseString(responseBody).asJsonObject
+                val content =
+                        json.getAsJsonArray("candidates")[0]
+                                        .asJsonObject
+                                        .getAsJsonObject("content")
+                                        .getAsJsonArray("parts")[0]
+                                .asJsonObject.get("text")
+                                .asString
+                return parseUnifiedResponse(content)
         }
-        
-        // 5. 首先尝试提取 JSON（兼容旧格式）
-        val jsonContent = extractJson(content)
-        
-        // 如果找到了 JSON，尝试解析
-        if (jsonContent.startsWith("{") && jsonContent.endsWith("}")) {
-            try {
-                Log.d(TAG, "提取的 JSON: $jsonContent")
-                FileLogger.d(TAG, "提取的 JSON: $jsonContent")
-                
+
+        private fun parseUnifiedResponse(content: String): AIResponse {
+                Log.i(TAG, "========== AI 返回内容 (Unified) ==========")
+                Log.i(TAG, content)
+                Log.i(TAG, "===========================================")
+                FileLogger.d(TAG, "AI 原始响应: ${content.take(500)}")
+
+                // 1. 提取思考过程 (think 标签)
+                val thinkPattern =
+                        Regex("""<think>\s*(.*?)\s*</think>""", RegexOption.DOT_MATCHES_ALL)
+                var thinking = thinkPattern.find(content)?.groupValues?.get(1)?.trim()
+
+                // 如果没有标签，尝试从开头提取 (兼容 deepseek 等模型)
+                if (thinking == null) {
+                        val actIndex = content.indexOf("<act>")
+                        val doIndex = content.indexOf("do(", ignoreCase = true)
+                        val answerIndex = content.indexOf("<answer>")
+
+                        // 找到最早出现的动作指示
+                        val indices = listOf(actIndex, doIndex, answerIndex).filter { it != -1 }
+                        val endIndex = if (indices.isNotEmpty()) indices.minOrNull() ?: -1 else -1
+
+                        if (endIndex > 0) {
+                                thinking = content.substring(0, endIndex).trim()
+                                Log.d(TAG, "从开头提取到思考内容: ${thinking?.take(50)}...")
+                        }
+                }
+
+                // 2. 提取 status (如果有)
+                val statusPattern = Regex("""status:\s*(.+?)(?:\n|$)""", RegexOption.IGNORE_CASE)
+                val status = statusPattern.find(content)?.groupValues?.get(1)?.trim() ?: ""
+
+                // 3. 提取动作内容 (<act> 或 <answer> 或 全文)
+                val actPattern = Regex("""<act>\s*(.*?)\s*</act>""", RegexOption.DOT_MATCHES_ALL)
+                val answerPattern =
+                        Regex("""<answer>\s*(.*?)\s*</answer>""", RegexOption.DOT_MATCHES_ALL)
+
+                val actionContent =
+                        actPattern.find(content)?.groupValues?.get(1)
+                                ?: answerPattern.find(content)?.groupValues?.get(1) ?: content
+
+                val actions = mutableListOf<Action>()
+
+                // 4. 解析动作列表
+                // 4.1 TapMark: do(action="Tap", mark=N)
+                val tapMarkPattern =
+                        Regex(
+                                """do\s*\(\s*action\s*=\s*"Tap"\s*,\s*mark\s*=\s*(\d+)\s*\)""",
+                                RegexOption.IGNORE_CASE
+                        )
+                tapMarkPattern.findAll(actionContent).forEach { match ->
+                        val markId = match.groupValues[1].toIntOrNull() ?: 0
+                        actions.add(Action.TapMark(markId))
+                        Log.d(TAG, "解析到 TapMark: $markId")
+                }
+
+                // 4.2 Tap: do(action="Tap", element=[x,y]) 或 Tap(x,y)
+                // 正则匹配 element=[x,y] 或 element=(x,y)
+                val tapCoordPattern =
+                        Regex(
+                                """do\s*\(\s*action\s*=\s*"Tap"\s*,\s*element\s*=\s*[\[\(]\s*(\d+)\s*,\s*(\d+)\s*[\]\)]\s*(?:,\s*message\s*=\s*"[^"]*")?\s*\)""",
+                                RegexOption.IGNORE_CASE
+                        )
+                tapCoordPattern.findAll(actionContent).forEach { match ->
+                        val x = match.groupValues[1].toIntOrNull() ?: 0
+                        val y = match.groupValues[2].toIntOrNull() ?: 0
+
+                        // 强制归一化处理：如果坐标 <= 1000 (且不为0)，视为归一化坐标
+                        val (pixelX, pixelY) =
+                                if (x <= 1000 && y <= 1000 && (x != 0 || y != 0)) {
+                                        normalizedToPixel(x, y)
+                                } else {
+                                        Pair(x, y)
+                                }
+
+                        actions.add(Action.Tap(pixelX, pixelY))
+                        Log.d(TAG, "解析到 Tap: raw=($x,$y) -> pixel=($pixelX,$pixelY)")
+                }
+
+                // 4.2.5 Malformed Tap mark=[x,y] (Gemini 常见错误)
+                val tapMarkCoordPattern =
+                        Regex(
+                                """do\s*\(\s*action\s*=\s*"Tap"\s*,\s*mark\s*=\s*[\[\(](\d+)\s*,\s*(\d+)[\]\)]\s*\)""",
+                                RegexOption.IGNORE_CASE
+                        )
+                tapMarkCoordPattern.findAll(actionContent).forEach { match ->
+                        val x = match.groupValues[1].toIntOrNull() ?: 0
+                        val y = match.groupValues[2].toIntOrNull() ?: 0
+                        val (pixelX, pixelY) =
+                                if (x <= 1000 && y <= 1000 && (x != 0 || y != 0)) {
+                                        normalizedToPixel(x, y)
+                                } else {
+                                        Pair(x, y)
+                                }
+                        actions.add(Action.Tap(pixelX, pixelY))
+                        Log.d(TAG, "解析到 Malformed Tap mark=[$x,$y] -> Tap($pixelX,$pixelY)")
+                }
+
+                // 4.3 Swipe: do(action="Swipe", start=[x1,y1], end=[x2,y2])
+                val swipePattern =
+                        Regex(
+                                """do\s*\(\s*action\s*=\s*"Swipe"\s*,\s*start\s*=\s*[\[\(](\d+)\s*,\s*(\d+)[\]\)]\s*,\s*end\s*=\s*[\[\(](\d+)\s*,\s*(\d+)[\]\)]""",
+                                RegexOption.IGNORE_CASE
+                        )
+                swipePattern.findAll(actionContent).forEach { match ->
+                        val x1 = match.groupValues[1].toIntOrNull() ?: 0
+                        val y1 = match.groupValues[2].toIntOrNull() ?: 0
+                        val x2 = match.groupValues[3].toIntOrNull() ?: 0
+                        val y2 = match.groupValues[4].toIntOrNull() ?: 0
+
+                        // 关键修复：如果任意一个坐标 > 1000，说明 AI 使用的是像素坐标，全部不归一化
+                        val isPixelCoords = x1 > 1000 || y1 > 1000 || x2 > 1000 || y2 > 1000
+
+                        val (px1, py1, px2, py2) =
+                                if (isPixelCoords) {
+                                        // 像素坐标，直接使用
+                                        listOf(x1, y1, x2, y2)
+                                } else {
+                                        // 归一化坐标 (0-1000)，需要转换
+                                        val (p1, p2) = normalizedToPixel(x1, y1)
+                                        val (p3, p4) = normalizedToPixel(x2, y2)
+                                        listOf(p1, p2, p3, p4)
+                                }
+
+                        actions.add(Action.Swipe(px1, py1, px2, py2))
+                        Log.d(
+                                TAG,
+                                "解析到 Swipe: raw=($x1,$y1)->($x2,$y2) -> pixel=($px1,$py1)->($px2,$py2) [isPixel=$isPixelCoords]"
+                        )
+                }
+
+                // 4.4 Input: do(action="Type", text="xxx")
+                val typePattern =
+                        Regex(
+                                """do\s*\(\s*action\s*=\s*"Type(?:_Name)?"\s*,\s*text\s*=\s*"([^"]*)"\s*\)""",
+                                RegexOption.IGNORE_CASE
+                        )
+                typePattern.findAll(actionContent).forEach { match ->
+                        actions.add(Action.Input(match.groupValues[1]))
+                        Log.d(TAG, "解析到 Input: ${match.groupValues[1]}")
+                }
+
+                // 4.5 Launch: do(action="Launch", app="xxx")
+                val launchPattern =
+                        Regex(
+                                """do\s*\(\s*action\s*=\s*"Launch"\s*,\s*app\s*=\s*"([^"]*)"\s*\)""",
+                                RegexOption.IGNORE_CASE
+                        )
+                launchPattern.findAll(actionContent).forEach { match ->
+                        actions.add(Action.Launch(match.groupValues[1]))
+                        Log.d(TAG, "解析到 Launch: ${match.groupValues[1]}")
+                }
+
+                // 4.6 Simple Actions (Back, Home, Enter, Wait, Done, AskUser)
+                // Finish
+                val finishPattern =
+                        Regex(
+                                """finish\s*\(\s*message\s*=\s*"([^"]*)"\s*\)""",
+                                RegexOption.IGNORE_CASE
+                        )
+                finishPattern.findAll(actionContent).forEach { match ->
+                        actions.add(Action.Done(match.groupValues[1]))
+                        Log.d(TAG, "解析到 Finish: ${match.groupValues[1]}")
+                }
+
+                // Ask User
+                val askUserPattern =
+                        Regex(
+                                """ask_user\s*\(\s*reason\s*=\s*"([^"]*)"(?:\s*,\s*suggestion\s*=\s*"([^"]*)")?\s*\)""",
+                                RegexOption.IGNORE_CASE
+                        )
+                askUserPattern.findAll(actionContent).forEach { match ->
+                        actions.add(
+                                Action.AskUser(
+                                        match.groupValues[1],
+                                        match.groupValues.getOrNull(2) ?: ""
+                                )
+                        )
+                        Log.d(TAG, "解析到 AskUser: ${match.groupValues[1]}")
+                }
+
+                // Back/Home/Enter/Wait
+                val simplePattern =
+                        Regex(
+                                """do\s*\(\s*action\s*=\s*"(Back|Home|Enter|Wait)"(?:\s*,\s*(?:duration|milliseconds)\s*=\s*"?(\d+)"?)?\s*\)""",
+                                RegexOption.IGNORE_CASE
+                        )
+                simplePattern.findAll(actionContent).forEach { match ->
+                        val type = match.groupValues[1].lowercase()
+                        val param = match.groupValues.getOrNull(2)
+                        when (type) {
+                                "back" -> actions.add(Action.Back)
+                                "home" -> actions.add(Action.Home)
+                                "enter" -> actions.add(Action.Enter)
+                                "wait" -> actions.add(Action.Wait((param?.toLongOrNull() ?: 1000L)))
+                        }
+                        Log.d(TAG, "解析到 SimpleAction: $type")
+                }
+
+                // 5. 备用解析 (如果没解析出 do() 指令)
+                if (actions.isEmpty()) {
+                        Log.w(TAG, "未解析到标准格式动作，尝试备用解析...")
+                        // 简单文本匹配
+                        if (actionContent.contains("任务完成") || actionContent.contains("finish")) {
+                                actions.add(Action.Done())
+                        } else if (actionContent.contains("返回")) {
+                                actions.add(Action.Back)
+                        } else if (actionContent.contains("主屏幕") || actionContent.contains("home")
+                        ) {
+                                actions.add(Action.Home)
+                        }
+
+                        // 尝试提取纯坐标 [x,y] 或 (x,y)
+                        val bracketPattern = Regex("""[\[\(]\s*(\d+)\s*,\s*(\d+)\s*[\]\)]""")
+                        val match = bracketPattern.findAll(actionContent).lastOrNull()
+                        if (match != null && actions.isEmpty()) {
+                                val x = match.groupValues[1].toInt()
+                                val y = match.groupValues[2].toInt()
+                                val (px, py) =
+                                        if (x <= 1000 && y <= 1000) normalizedToPixel(x, y)
+                                        else Pair(x, y)
+                                actions.add(Action.Tap(px, py))
+                                Log.d(TAG, "备用解析提取坐标: ($px, $py)")
+                        }
+                }
+
+                if (actions.isEmpty()) {
+                        // 最后一搏：尝试 JSON 解析 (兼容旧模型)
+                        val json = extractJson(content)
+                        if (json.startsWith("{")) {
+                                try {
+                                        val jsonAction =
+                                                parseJsonAction(json) // 需要把之前的 JSON 解析逻辑提取出来
+                                        actions.add(jsonAction)
+                                } catch (e: Exception) {
+                                        Log.w(TAG, "JSON 备用解析失败: ${e.message}")
+                                }
+                        }
+                }
+
+                if (actions.isEmpty()) {
+                        throw Exception("无法解析 AI 响应，未找到有效动作。")
+                }
+
+                return AIResponse(
+                        action = actions.first(),
+                        actions = actions,
+                        status = status,
+                        thinking = thinking,
+                        rawResponse = content.take(1000)
+                )
+        }
+
+        /** 辅助方法：解析单个 JSON 动作 */
+        private fun parseJsonAction(jsonContent: String): Action {
                 val reader = com.google.gson.stream.JsonReader(java.io.StringReader(jsonContent))
                 reader.isLenient = true
                 val actionJson = JsonParser.parseReader(reader).asJsonObject
-                
-                val actionType = actionJson.get("action")?.asString 
-                    ?: throw Exception("响应中缺少 action 字段")
-                
-                val action = when (actionType.lowercase()) {
-                    "tap", "click" -> {
-                        val x = actionJson.get("x")?.asInt ?: 0
-                        val y = actionJson.get("y")?.asInt ?: 0
-                        Action.Tap(x, y)
-                    }
-                    "swipe", "scroll" -> Action.Swipe(
-                        actionJson.get("x1")?.asInt ?: actionJson.get("startX")?.asInt ?: 0,
-                        actionJson.get("y1")?.asInt ?: actionJson.get("startY")?.asInt ?: 0,
-                        actionJson.get("x2")?.asInt ?: actionJson.get("endX")?.asInt ?: 0,
-                        actionJson.get("y2")?.asInt ?: actionJson.get("endY")?.asInt ?: 0,
-                        actionJson.get("duration")?.asInt ?: 300
-                    )
-                    "input", "type", "text" -> {
-                        val text = actionJson.get("text")?.asString 
-                            ?: actionJson.get("content")?.asString 
-                            ?: ""
-                        Action.Input(text)
-                    }
-                    "back" -> Action.Back
-                    "home" -> Action.Home
-                    "wait", "sleep", "delay" -> {
-                        val ms = actionJson.get("milliseconds")?.asLong 
-                            ?: actionJson.get("ms")?.asLong 
-                            ?: actionJson.get("duration")?.asLong 
-                            ?: 1000
-                        Action.Wait(ms)
-                    }
-                    "done", "complete", "finish", "completed" -> Action.Done()
-                    else -> throw Exception("未知动作类型: $actionType")
-                }
-                
-                FileLogger.d(TAG, "解析成功: $action")
-                return AIResponse(action = action)
-            } catch (jsonError: Exception) {
-                Log.w(TAG, "JSON 解析失败，尝试备用解析: ${jsonError.message}")
-                FileLogger.w(TAG, "JSON 解析失败: ${jsonError.message}")
-            }
-        }
-        
-        // 备用解析：从纯文本中提取坐标
-        Log.d(TAG, "尝试从文本中提取坐标...")
-        FileLogger.d(TAG, "尝试备用解析，从文本提取坐标")
-        
-        val action = tryParseFromText(content)
-        if (action != null) {
-            FileLogger.d(TAG, "备用解析成功: $action")
-            return AIResponse(action = action)
-        }
-        
-        // 都失败了
-        FileLogger.e(TAG, "无法解析 AI 响应")
-        throw Exception("无法解析 AI 响应，请检查 AI 模型是否支持此任务\n原始响应: ${content.take(200)}")
-    }
-    
-    /**
-     * 备用解析：从纯文本中提取动作
-     */
-    private fun tryParseFromText(content: String): Action? {
-        val lowerContent = content.lowercase()
-        
-        // 1. 首先尝试从 <answer> 标签中提取内容
-        val answerPattern = Regex("""<answer>\s*(.*?)\s*</answer>""", RegexOption.DOT_MATCHES_ALL)
-        val answerContent = answerPattern.find(content)?.groupValues?.get(1) ?: content
-        
-        // 2. 检查 finish 操作
-        val finishPattern = Regex("""finish\s*\(\s*message\s*=\s*"([^"]*)"\s*\)""", RegexOption.IGNORE_CASE)
-        val finishMatch = finishPattern.find(answerContent)
-        if (finishMatch != null) {
-            val message = finishMatch.groupValues[1]
-            Log.d(TAG, "解析到 finish 操作: $message")
-            return Action.Done(message)
-        }
-        
-        // 2.5 检查 ask_user 操作
-        val askUserPattern = Regex("""ask_user\s*\(\s*reason\s*=\s*"([^"]*)"(?:\s*,\s*suggestion\s*=\s*"([^"]*)")?\s*\)""", RegexOption.IGNORE_CASE)
-        val askUserMatch = askUserPattern.find(answerContent)
-        if (askUserMatch != null) {
-            val reason = askUserMatch.groupValues[1]
-            val suggestion = askUserMatch.groupValues.getOrNull(2) ?: ""
-            Log.d(TAG, "解析到 ask_user 操作: reason=$reason, suggestion=$suggestion")
-            return Action.AskUser(reason, suggestion)
-        }
-        
-        // 3. 解析带 message 的敏感 Tap 操作 do(action="Tap", element=[x,y], message="...")
-        val sensitiveTagPattern = Regex("""do\s*\(\s*action\s*=\s*"Tap"\s*,\s*element\s*=\s*\[\s*(\d+)\s*,\s*(\d+)\s*\]\s*,\s*message\s*=\s*"([^"]*)"""", RegexOption.IGNORE_CASE)
-        val sensitiveMatch = sensitiveTagPattern.find(answerContent)
-        if (sensitiveMatch != null) {
-            val message = sensitiveMatch.groupValues[3]
-            Log.d(TAG, "解析到敏感操作 Tap with message: $message")
-            return Action.AskUser(reason = "敏感操作: $message", suggestion = "请确认后点击继续")
-        }
-        
-        // 4. 解析 do(action="xxx", element=[x,y]) 格式 (AutoGLM 原生格式)
-        val doElementPattern = Regex("""do\s*\(\s*action\s*=\s*"([\w\s]+)"\s*,\s*element\s*=\s*\[\s*(\d+)\s*,\s*(\d+)\s*\]""", RegexOption.IGNORE_CASE)
-        val doElementMatch = doElementPattern.find(answerContent)
-        if (doElementMatch != null) {
-            val action = doElementMatch.groupValues[1].lowercase().trim()
-            val normX = doElementMatch.groupValues[2].toIntOrNull() ?: 500
-            val normY = doElementMatch.groupValues[3].toIntOrNull() ?: 500
-            
-            Log.d(TAG, "解析 do() element 格式: action=$action, norm=($normX,$normY)")
-            
-            // 转换归一化坐标到像素坐标
-            val (pixelX, pixelY) = normalizedToPixel(normX, normY)
-            Log.d(TAG, "转换为像素坐标: ($pixelX, $pixelY)")
-            
-            return when (action) {
-                "tap", "click" -> Action.Tap(pixelX, pixelY)
-                "long press", "longpress" -> Action.LongPress(pixelX, pixelY)
-                "double tap", "doubletap" -> Action.Tap(pixelX, pixelY)  // 双击暂时用普通点击
-                else -> null
-            }
-        }
-        
-        // 4. 解析 do(action="Swipe", start=[x1,y1], end=[x2,y2]) 格式
-        val swipePattern = Regex("""do\s*\(\s*action\s*=\s*"Swipe"\s*,\s*start\s*=\s*\[\s*(\d+)\s*,\s*(\d+)\s*\]\s*,\s*end\s*=\s*\[\s*(\d+)\s*,\s*(\d+)\s*\]""", RegexOption.IGNORE_CASE)
-        val swipeMatch = swipePattern.find(answerContent)
-        if (swipeMatch != null) {
-            val normX1 = swipeMatch.groupValues[1].toIntOrNull() ?: 500
-            val normY1 = swipeMatch.groupValues[2].toIntOrNull() ?: 750
-            val normX2 = swipeMatch.groupValues[3].toIntOrNull() ?: 500
-            val normY2 = swipeMatch.groupValues[4].toIntOrNull() ?: 250
-            
-            val (x1, y1) = normalizedToPixel(normX1, normY1)
-            val (x2, y2) = normalizedToPixel(normX2, normY2)
-            
-            Log.d(TAG, "解析 Swipe: ($x1,$y1) -> ($x2,$y2)")
-            return Action.Swipe(x1, y1, x2, y2, 300)
-        }
-        
-        // 5. 解析 do(action="Type", text="xxx") 格式
-        val typePattern = Regex("""do\s*\(\s*action\s*=\s*"Type(?:_Name)?"\s*,\s*text\s*=\s*"([^"]*)"\s*\)""", RegexOption.IGNORE_CASE)
-        val typeMatch = typePattern.find(answerContent)
-        if (typeMatch != null) {
-            val text = typeMatch.groupValues[1]
-            Log.d(TAG, "解析 Type: $text")
-            return Action.Input(text)
-        }
-        
-        // 5.1 解析 do(action="Launch", app="xxx") 格式
-        val launchPattern = Regex("""do\s*\(\s*action\s*=\s*"Launch"\s*,\s*app\s*=\s*"([^"]*)"\s*\)""", RegexOption.IGNORE_CASE)
-        val launchMatch = launchPattern.find(answerContent)
-        if (launchMatch != null) {
-            val appName = launchMatch.groupValues[1]
-            Log.d(TAG, "解析 Launch: app=$appName")
-            return Action.Launch(appName)
-        }
-        
-        // 6. 解析简单操作
-        val simpleActionPattern = Regex("""do\s*\(\s*action\s*=\s*"(\w+)"\s*(?:,\s*duration\s*=\s*"?(\d+)[^"]*"?)?\s*\)""", RegexOption.IGNORE_CASE)
-        val simpleMatch = simpleActionPattern.find(answerContent)
-        if (simpleMatch != null) {
-            val action = simpleMatch.groupValues[1].lowercase()
-            Log.d(TAG, "解析简单操作: $action")
-            
-            return when (action) {
-                "back" -> Action.Back
-                "home" -> Action.Home
-                "enter" -> Action.Enter
-                "wait" -> {
-                    val seconds = simpleMatch.groupValues[2].toIntOrNull() ?: 2
-                    Action.Wait(seconds * 1000L)
-                }
-                else -> null
-            }
-        }
-        
-        // 7. 检查关键词
-        if (lowerContent.contains("任务完成") || lowerContent.contains("已完成") || 
-            lowerContent.contains("task completed") || lowerContent.contains("finish")) {
-            return Action.Done()
-        }
-        
-        if (lowerContent.contains("返回") && !lowerContent.contains("返回主")) {
-            return Action.Back
-        }
-        
-        if (lowerContent.contains("主屏幕") || lowerContent.contains("回到主") || 
-            lowerContent.contains("home")) {
-            return Action.Home
-        }
-        
-        // 8. 尝试从坐标格式提取（兼容旧格式）
-        // [x, y] 格式（归一化坐标）
-        val bracketPattern = Regex("""\[\s*(\d+)\s*,\s*(\d+)\s*\]""")
-        val bracketMatch = bracketPattern.findAll(answerContent).lastOrNull()
-        if (bracketMatch != null) {
-            val x = bracketMatch.groupValues[1].toIntOrNull() ?: return null
-            val y = bracketMatch.groupValues[2].toIntOrNull() ?: return null
-            
-            // 判断是归一化坐标还是像素坐标
-            if (x <= 999 && y <= 999) {
-                val (pixelX, pixelY) = normalizedToPixel(x, y)
-                Log.d(TAG, "从 [x,y] 提取归一化坐标: [$x,$y] -> ($pixelX,$pixelY)")
-                return Action.Tap(pixelX, pixelY)
-            } else {
-                Log.d(TAG, "从 [x,y] 提取像素坐标: ($x, $y)")
-                return Action.Tap(x, y)
-            }
-        }
-        
-        // (x, y) 格式（像素坐标）
-        val parenPattern = Regex("""\(\s*(\d+)\s*,\s*(\d+)\s*\)""")
-        val parenMatch = parenPattern.findAll(content).lastOrNull()
-        if (parenMatch != null) {
-            val x = parenMatch.groupValues[1].toIntOrNull() ?: return null
-            val y = parenMatch.groupValues[2].toIntOrNull() ?: return null
-            if (x in 0..3000 && y in 0..5000) {
-                Log.d(TAG, "从 (x,y) 提取像素坐标: ($x, $y)")
-                return Action.Tap(x, y)
-            }
-        }
-        
-        return null
-    }
-    
-    private fun parseErrorMessage(responseBody: String, statusCode: Int): String {
-        return try {
-            val reader = com.google.gson.stream.JsonReader(java.io.StringReader(responseBody))
-            reader.isLenient = true
-            val json = JsonParser.parseReader(reader).asJsonObject
-            val error = json.getAsJsonObject("error")
-            val message = error?.get("message")?.asString ?: responseBody
-            "API 错误 ($statusCode): $message"
-        } catch (e: Exception) {
-            "API 错误 ($statusCode): $responseBody"
-        }
-    }
-    
-    private fun bitmapToBase64(bitmap: Bitmap): String {
-        val outputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
-        return Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
-    }
-    
-    private fun extractJson(content: String): String {
-        // 尝试多种方式提取 JSON
-        
-        // 1. 查找 ```json 代码块
-        val codeBlockPattern = Regex("```(?:json)?\\s*\\n?([\\s\\S]*?)\\n?```")
-        val codeBlockMatch = codeBlockPattern.find(content)
-        if (codeBlockMatch != null) {
-            val extracted = codeBlockMatch.groupValues[1].trim()
-            if (extracted.startsWith("{")) {
-                return extracted
-            }
-        }
-        
-        // 2. 查找第一个完整的 JSON 对象
-        var braceCount = 0
-        var jsonStart = -1
-        var jsonEnd = -1
-        
-        for (i in content.indices) {
-            when (content[i]) {
-                '{' -> {
-                    if (jsonStart == -1) jsonStart = i
-                    braceCount++
-                }
-                '}' -> {
-                    braceCount--
-                    if (braceCount == 0 && jsonStart != -1) {
-                        jsonEnd = i
-                        break
-                    }
-                }
-            }
-        }
-        
-        if (jsonStart != -1 && jsonEnd > jsonStart) {
-            return content.substring(jsonStart, jsonEnd + 1)
-        }
-        
-        // 3. 简单的花括号匹配
-        val simpleStart = content.indexOf('{')
-        val simpleEnd = content.lastIndexOf('}')
-        if (simpleStart != -1 && simpleEnd > simpleStart) {
-            return content.substring(simpleStart, simpleEnd + 1)
-        }
-        
-        // 4. 返回原内容，让后续解析处理错误
-        return content.trim()
-    }
-}
+                val actionType =
+                        actionJson.get("action")?.asString ?: throw Exception("Missing action type")
 
+                return when (actionType.lowercase()) {
+                        "tap", "click" -> {
+                                val x = actionJson.get("x")?.asInt ?: 0
+                                val y = actionJson.get("y")?.asInt ?: 0
+                                val (px, py) =
+                                        if (x <= 1000 && y <= 1000) normalizedToPixel(x, y)
+                                        else Pair(x, y)
+                                Action.Tap(px, py)
+                        }
+                        "input", "type" -> Action.Input(actionJson.get("text")?.asString ?: "")
+                        "back" -> Action.Back
+                        "home" -> Action.Home
+                        "wait" -> Action.Wait(actionJson.get("duration")?.asLong ?: 1000L)
+                        "done", "finish" -> Action.Done()
+                        else -> throw Exception("Unknown action: $actionType")
+                }
+        }
+
+        private fun parseErrorMessage(responseBody: String, statusCode: Int): String {
+                return try {
+                        val reader =
+                                com.google.gson.stream.JsonReader(
+                                        java.io.StringReader(responseBody)
+                                )
+                        reader.isLenient = true
+                        val json = JsonParser.parseReader(reader).asJsonObject
+                        val error = json.getAsJsonObject("error")
+                        val message = error?.get("message")?.asString ?: responseBody
+                        "API 错误 ($statusCode): $message"
+                } catch (e: Exception) {
+                        "API 错误 ($statusCode): $responseBody"
+                }
+        }
+
+        private fun bitmapToBase64(bitmap: Bitmap): String {
+                val outputStream = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+                return Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
+        }
+
+        private fun extractJson(content: String): String {
+                // 尝试多种方式提取 JSON
+
+                // 1. 查找 ```json 代码块
+                val codeBlockPattern = Regex("```(?:json)?\\s*\\n?([\\s\\S]*?)\\n?```")
+                val codeBlockMatch = codeBlockPattern.find(content)
+                if (codeBlockMatch != null) {
+                        val extracted = codeBlockMatch.groupValues[1].trim()
+                        if (extracted.startsWith("{")) {
+                                return extracted
+                        }
+                }
+
+                // 2. 查找第一个完整的 JSON 对象
+                var braceCount = 0
+                var jsonStart = -1
+                var jsonEnd = -1
+
+                for (i in content.indices) {
+                        when (content[i]) {
+                                '{' -> {
+                                        if (jsonStart == -1) jsonStart = i
+                                        braceCount++
+                                }
+                                '}' -> {
+                                        braceCount--
+                                        if (braceCount == 0 && jsonStart != -1) {
+                                                jsonEnd = i
+                                                break
+                                        }
+                                }
+                        }
+                }
+
+                if (jsonStart != -1 && jsonEnd > jsonStart) {
+                        return content.substring(jsonStart, jsonEnd + 1)
+                }
+
+                // 3. 简单的花括号匹配
+                val simpleStart = content.indexOf('{')
+                val simpleEnd = content.lastIndexOf('}')
+                if (simpleStart != -1 && simpleEnd > simpleStart) {
+                        return content.substring(simpleStart, simpleEnd + 1)
+                }
+
+                // 4. 返回原内容，让后续解析处理错误
+                return content.trim()
+        }
+
+        // ==================== Shizuku 模式专用方法 ====================
+
+        /** Shizuku 模式分析屏幕并获取下一步动作 使用包名启动应用的专用提示词 */
+        suspend fun analyzeScreenAndPlanForShizuku(
+                screenshot: Bitmap,
+                task: String,
+                previousActions: List<String> = emptyList(),
+                uiElements: List<UIElement> = emptyList()
+        ): AIResponse =
+                withContext(Dispatchers.IO) {
+                        val availableConfigs = getAvailableConfigs()
+
+                        if (availableConfigs.isEmpty()) {
+                                throw Exception("没有可用的 API 配置，请在设置中添加")
+                        }
+
+                        val shuffledConfigs =
+                                availableConfigs
+                                        .sortedByDescending { it.priority }
+                                        .groupBy { it.priority }
+                                        .flatMap { (_, configs) -> configs.shuffled() }
+
+                        var lastException: Exception? = null
+
+                        for (config in shuffledConfigs) {
+                                try {
+                                        Log.d(TAG, "Shizuku模式: 尝试使用 API: ${config.name}")
+                                        val result =
+                                                makeShizukuApiCallWithRetry(
+                                                        config,
+                                                        screenshot,
+                                                        task,
+                                                        previousActions,
+                                                        uiElements
+                                                )
+                                        failedApis.remove(config.id)
+                                        return@withContext result
+                                } catch (e: Exception) {
+                                        Log.w(TAG, "API ${config.name} 调用失败: ${e.message}")
+                                        lastException = e
+                                        failedApis[config.id] = System.currentTimeMillis()
+                                }
+                        }
+
+                        throw lastException ?: Exception("所有 API 调用均失败")
+                }
+
+        private suspend fun makeShizukuApiCallWithRetry(
+                config: ApiConfig,
+                screenshot: Bitmap,
+                task: String,
+                previousActions: List<String>,
+                uiElements: List<UIElement>
+        ): AIResponse {
+                var lastException: Exception? = null
+                var delayMs = retryConfig.initialDelayMs
+
+                repeat(retryConfig.maxRetries) { attempt ->
+                        try {
+                                return makeShizukuApiCall(
+                                        config,
+                                        screenshot,
+                                        task,
+                                        previousActions,
+                                        uiElements
+                                )
+                        } catch (e: Exception) {
+                                lastException = e
+                                if (!isRetryableError(e)) throw e
+                                if (attempt < retryConfig.maxRetries - 1) {
+                                        delay(delayMs)
+                                        delayMs =
+                                                (delayMs * retryConfig.multiplier)
+                                                        .toLong()
+                                                        .coerceAtMost(retryConfig.maxDelayMs)
+                                }
+                        }
+                }
+                throw lastException ?: Exception("API 调用失败")
+        }
+
+        private suspend fun makeShizukuApiCall(
+                config: ApiConfig,
+                screenshot: Bitmap,
+                task: String,
+                previousActions: List<String>,
+                uiElements: List<UIElement>
+        ): AIResponse {
+                val base64Image = bitmapToBase64(screenshot)
+                val systemPrompt = getShizukuSystemPrompt()
+                val userMessage = getShizukuUserMessage(task, previousActions, uiElements)
+
+                // 打印发送给 AI 的提示词
+                Log.i(TAG, "===== Shizuku System Prompt =====")
+                Log.i(TAG, systemPrompt)
+                Log.i(TAG, "===== Shizuku User Message =====")
+                Log.i(TAG, userMessage)
+                Log.i(TAG, "=================================")
+
+                // 调试日志：输出请求详情（API Key 掩码处理）
+                val maskedKey =
+                        if (config.apiKey.length > 8) {
+                                config.apiKey.take(4) + "****" + config.apiKey.takeLast(4)
+                        } else {
+                                "****"
+                        }
+
+                // 判断是否是 Gemini API
+                val isGemini =
+                        config.endpoint.contains("googleapis.com") ||
+                                config.endpoint.contains("gemini") ||
+                                config.endpoint.contains("generativelanguage")
+
+                Log.i(
+                        TAG,
+                        "Shizuku API 请求: endpoint=${config.endpoint}, model=${config.model}, key=$maskedKey, isGemini=$isGemini"
+                )
+
+                val request =
+                        if (isGemini) {
+                                // Gemini 格式请求
+                                val combinedMessage = "$systemPrompt\n\n$userMessage"
+                                val requestJson =
+                                        JsonObject().apply {
+                                                add(
+                                                        "contents",
+                                                        gson.toJsonTree(
+                                                                listOf(
+                                                                        mapOf(
+                                                                                "parts" to
+                                                                                        listOf(
+                                                                                                mapOf(
+                                                                                                        "text" to
+                                                                                                                combinedMessage
+                                                                                                ),
+                                                                                                mapOf(
+                                                                                                        "inline_data" to
+                                                                                                                mapOf(
+                                                                                                                        "mime_type" to
+                                                                                                                                "image/jpeg",
+                                                                                                                        "data" to
+                                                                                                                                base64Image
+                                                                                                                )
+                                                                                                )
+                                                                                        )
+                                                                        )
+                                                                )
+                                                        )
+                                                )
+                                        }
+                                // Gemini 使用 URL 参数传递 API Key
+                                val url = "${config.endpoint}?key=${config.apiKey}"
+                                Request.Builder()
+                                        .url(url)
+                                        .addHeader("Content-Type", "application/json")
+                                        .post(
+                                                requestJson
+                                                        .toString()
+                                                        .toRequestBody(
+                                                                "application/json".toMediaType()
+                                                        )
+                                        )
+                                        .build()
+                        } else {
+                                // OpenAI 兼容格式请求
+                                val requestJson =
+                                        JsonObject().apply {
+                                                addProperty("model", config.model)
+                                                addProperty("stream", false)
+                                                add(
+                                                        "messages",
+                                                        gson.toJsonTree(
+                                                                listOf(
+                                                                        mapOf(
+                                                                                "role" to "system",
+                                                                                "content" to
+                                                                                        systemPrompt
+                                                                        ),
+                                                                        mapOf(
+                                                                                "role" to "user",
+                                                                                "content" to
+                                                                                        listOf(
+                                                                                                mapOf(
+                                                                                                        "type" to
+                                                                                                                "text",
+                                                                                                        "text" to
+                                                                                                                userMessage
+                                                                                                ),
+                                                                                                mapOf(
+                                                                                                        "type" to
+                                                                                                                "image_url",
+                                                                                                        "image_url" to
+                                                                                                                mapOf(
+                                                                                                                        "url" to
+                                                                                                                                "data:image/jpeg;base64,$base64Image"
+                                                                                                                )
+                                                                                                )
+                                                                                        )
+                                                                        )
+                                                                )
+                                                        )
+                                                )
+                                                addProperty("max_tokens", 1024)
+                                                addProperty("temperature", 0.1)
+                                        }
+                                // OpenAI 兼容格式使用 Bearer token
+                                Request.Builder()
+                                        .url(config.endpoint)
+                                        .addHeader("Authorization", "Bearer ${config.apiKey}")
+                                        .addHeader("Content-Type", "application/json")
+                                        .post(
+                                                requestJson
+                                                        .toString()
+                                                        .toRequestBody(
+                                                                "application/json".toMediaType()
+                                                        )
+                                        )
+                                        .build()
+                        }
+
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: throw Exception("空响应")
+
+                if (!response.isSuccessful) {
+                        throw Exception(parseErrorMessage(responseBody, response.code))
+                }
+
+                // 根据 API 类型选择不同的解析方法
+                return if (isGemini) {
+                        parseGeminiResponse(responseBody)
+                } else {
+                        parseOpenAIResponse(responseBody)
+                }
+        }
+        // Shizuku 模式 - 使用统一函数
+        private fun getShizukuSystemPrompt(): String = getUnifiedSystemPrompt()
+        private fun getShizukuUserMessage(
+                task: String,
+                previousActions: List<String>,
+                uiElements: List<UIElement>
+        ): String = getUnifiedUserMessage(task, previousActions)
+}

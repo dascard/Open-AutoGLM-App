@@ -6,7 +6,7 @@
 
 # Files for the ART/Dalvik VM
 *.dex
-
+*.code-workspace
 # Java class files
 *.class
 
@@ -43,3 +43,6 @@ frontend/.vite/
 # OS files
 Thumbs.db
 .DS_Store
+
+*.png
+RELEASE_NOTES.md

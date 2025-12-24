@@ -23,6 +23,15 @@ interface AndroidInterface {
     bindShizukuService(): void;
     executeAdbCommand(command: string): string;
     getShizukuStatus(): string;
+    // Settings methods
+    getLogLevel(): number;
+    setLogLevel(level: number): void;
+    getDevMode(): boolean;
+    setDevMode(enabled: boolean): void;
+    getChatHistory(): string;
+    saveChatHistory(json: string): void;
+    getMaxSteps(): number;
+    setMaxSteps(steps: number): void;
 }
 
 // Extend Window interface
@@ -38,6 +47,7 @@ declare global {
         showToast?: (message: string) => void;
         openSettings?: (data: string) => void;
         updateShizukuStatus?: (status: string) => void;
+        handleBack?: () => boolean; // Returns true if handled, false to allow default behavior
     }
 }
 
@@ -184,6 +194,10 @@ class Bridge {
         }
     }
 
+    static onBackPressed(callback: () => boolean) {
+        window.handleBack = callback;
+    }
+
     // --- Shizuku Methods ---
 
     static checkShizukuAvailable(): boolean {
@@ -247,6 +261,69 @@ class Bridge {
                 console.error('Failed to parse Shizuku status', e);
             }
         };
+    }
+
+    // --- Settings Methods ---
+
+    static getLogLevel(): number {
+        if (window.Android) {
+            return window.Android.getLogLevel();
+        }
+        return 3; // Mock: INFO
+    }
+
+    static setLogLevel(level: number) {
+        if (window.Android) {
+            window.Android.setLogLevel(level);
+        } else {
+            console.log('Mock: setLogLevel', level);
+        }
+    }
+
+    static getDevMode(): boolean {
+        if (window.Android) {
+            return window.Android.getDevMode();
+        }
+        return false; // Mock
+    }
+
+    static setDevMode(enabled: boolean) {
+        if (window.Android) {
+            window.Android.setDevMode(enabled);
+        } else {
+            console.log('Mock: setDevMode', enabled);
+        }
+    }
+
+    static getChatHistory(): any[] {
+        if (window.Android) {
+            const json = window.Android.getChatHistory();
+            return JSON.parse(json);
+        }
+        return []; // Mock
+    }
+
+    static saveChatHistory(sessions: any[]) {
+        if (window.Android) {
+            window.Android.saveChatHistory(JSON.stringify(sessions));
+        } else {
+            console.log('Mock: saveChatHistory', sessions);
+        }
+    }
+
+    static getMaxSteps(): number {
+        if (window.Android) {
+            return window.Android.getMaxSteps();
+        }
+        return 50; // Mock default
+    }
+
+    static setMaxSteps(steps: number) {
+        if (window.Android) {
+            window.Android.setMaxSteps(steps);
+        } else {
+            console.log('Mock: setMaxSteps', steps);
+        }
     }
 }
 

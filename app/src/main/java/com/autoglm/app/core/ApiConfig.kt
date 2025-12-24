@@ -44,9 +44,8 @@ enum class AIProvider(
         displayName = "Google Gemini",
         endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
         defaultModels = listOf(
-            ModelInfo("gemini-1.5-flash", "Gemini 1.5 Flash (推荐)", true),
-            ModelInfo("gemini-1.5-pro", "Gemini 1.5 Pro", true),
-            ModelInfo("gemini-2.0-flash-exp", "Gemini 2.0 Flash", true)
+            ModelInfo("gemini-2.5-flash", "Gemini 2.5 Flash (推荐)", true),
+            ModelInfo("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite", true),
         )
     ),
     QWEN(

@@ -39,6 +39,8 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
+        aidl = true
     }
 }
 
@@ -64,4 +66,9 @@ dependencies {
     
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
+    
+    // Shizuku
+    val shizukuVersion = "13.1.5"
+    implementation("dev.rikka.shizuku:api:$shizukuVersion")
+    implementation("dev.rikka.shizuku:provider:$shizukuVersion")
 }

@@ -1,78 +1,154 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/layout_root"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="@drawable/floating_window_bg"
-    android:padding="12dp"
-    android:elevation="8dp">
+    android:padding="8dp">
 
-    <!-- 状态文本 -->
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:text="正在执行..."
-        android:textColor="#00E676"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:fontFamily="sans-serif-medium"
-        android:ellipsize="end"
-        android:maxLines="2" />
+    <!-- 最小化状态：只显示一个球 -->
+    <ImageView
+        android:id="@+id/iv_minimized_orb"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/ic_orb"
+        android:visibility="gone"
+        android:elevation="4dp"/>
 
-    <!-- 当前动作 -->
-    <TextView
-        android:id="@+id/tvAction"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="等待指令"
-        android:textColor="#E0E0E0"
-        android:textSize="12sp"
-        android:fontFamily="sans-serif"
-        android:ellipsize="end"
-        android:maxLines="10" 
-        android:minLines="1" />
-
-    <!-- 按钮区域 -->
+    <!-- 展开状态：完整的胶囊条 -->
     <LinearLayout
-        android:layout_width="match_parent"
+        android:id="@+id/layout_expanded"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="8dp"
-        android:gravity="center">
+        android:orientation="vertical"
+        android:visibility="visible">
 
-        <Button
-            android:id="@+id/btnPause"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:text="暂停"
-            android:textSize="12sp"
-            android:textColor="#FFFFFF"
-            android:background="@drawable/btn_pause_bg" />
+        <!-- 顶部拖拽手柄 -->
+        <View
+            android:id="@+id/view_drag_handle"
+            android:layout_width="match_parent"
+            android:layout_height="12dp"
+            android:background="#00000000" />
 
-        <Button
-            android:id="@+id/btnStop"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:layout_marginStart="6dp"
-            android:text="停止"
-            android:textSize="12sp"
-            android:textColor="#FFFFFF"
-            android:background="@drawable/btn_stop_bg" />
+        <!-- 日志面板 -->
+        <LinearLayout
+            android:id="@+id/layout_logs"
+            android:layout_width="280dp"
+            android:layout_height="200dp"
+            android:background="@drawable/bg_chat_panel"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
 
-        <Button
-            android:id="@+id/btnMinimize"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginStart="6dp"
-            android:text="−"
-            android:textSize="16sp"
-            android:textColor="#FFFFFF"
-            android:background="@drawable/btn_minimize_bg" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
 
+                <TextView
+                    android:id="@+id/tv_logs_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="任务日志"
+                    android:textColor="#333333"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
+
+                <ImageView
+                    android:id="@+id/btn_close_logs"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_close"
+                    app:tint="#666666"/>
+            </LinearLayout>
+
+            <ScrollView
+                android:id="@+id/sv_logs"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginTop="8dp"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:id="@+id/ll_messages"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingBottom="8dp"/>
+            </ScrollView>
+        </LinearLayout>
+
+        <!-- 控制栏 -->
+        <LinearLayout
+            android:id="@+id/layout_bar"
+            android:layout_width="280dp"
+            android:layout_height="52dp"
+            android:layout_marginTop="-8dp"
+            android:background="@drawable/bg_pill"
+            android:elevation="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <!-- 左侧：在默认模式显示键盘图标，在输入模式显示光环 -->
+            <ImageView
+                android:id="@+id/iv_keyboard"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_keyboard"
+                app:tint="#333333"/>
+
+            <ImageView
+                android:id="@+id/iv_orb_input"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_orb"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone"/>
+
+            <!-- 中间区域 -->
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1">
+
+                <!-- 默认模式：中间显示光环 -->
+                <ImageView
+                    android:id="@+id/iv_orb_center"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_orb"/>
+
+                <!-- 输入模式：显示输入框 -->
+                <EditText
+                    android:id="@+id/et_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_gravity="center"
+                    android:layout_marginHorizontal="8dp"
+                    android:background="@drawable/edit_text_bg"
+                    android:hint="输入指令..."
+                    android:imeOptions="actionSend"
+                    android:inputType="text"
+                    android:paddingHorizontal="12dp"
+                    android:singleLine="true"
+                    android:textColor="#333333"
+                    android:textColorHint="#999999"
+                    android:textSize="13sp"
+                    android:visibility="gone"/>
+            </FrameLayout>
+
+            <!-- 最小化按钮 -->
+            <ImageView
+                android:id="@+id/btn_minimize"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_minimize"
+                app:tint="#666666"/>
+        </LinearLayout>
     </LinearLayout>
-
-</LinearLayout>
+</FrameLayout>

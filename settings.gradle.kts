@@ -11,6 +11,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Shizuku (dev.rikka)
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

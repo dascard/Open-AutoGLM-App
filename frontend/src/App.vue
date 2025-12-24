@@ -1,283 +1,374 @@
 <template>
   <div class="min-h-screen transition-colors duration-300 ease-in-out flex flex-col gap-4 p-4 font-sans bg-gray-50 text-gray-900 dark:bg-[#121212] dark:text-gray-200">
     
-    <!-- 1. 顶部标题栏 & 导航 -->
-    <div class="flex items-center justify-between px-2 py-1">
-      <div class="flex items-center gap-3">
-        <div class="w-1.5 h-6 rounded-full shadow-sm bg-[#00C853] shadow-[0_0_8px_rgba(0,200,83,0.5)]"></div>
-        <h1 class="text-xl font-bold tracking-wide transition-colors text-gray-800 dark:text-white">AutoGLM Hybrid</h1>
+    <!-- 1. 顶部标题栏 & 导航 (固定置顶) -->
+    <div class="sticky top-0 z-40 flex items-center justify-between px-2 py-2 -mx-4 -mt-4 mb-2 bg-gray-50 dark:bg-[#121212] border-b border-gray-200 dark:border-white/5">
+      <!-- 左侧: 对话历史按钮 -->
+      <button 
+        @click="showChatHistory = true"
+        class="flex items-center justify-center w-9 h-9 rounded-lg transition-all active:scale-95 bg-white text-gray-600 border border-gray-200 hover:bg-gray-100 dark:bg-white/5 dark:text-gray-300 dark:border-white/10 dark:hover:bg-white/10"
+        title="对话历史"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </button>
+
+      <!-- 中间: 标题 -->
+      <div class="flex items-center gap-2">
+        <div class="w-1.5 h-5 rounded-full shadow-sm bg-[#00C853] shadow-[0_0_8px_rgba(0,200,83,0.5)]"></div>
+        <h1 class="text-xl font-bold tracking-wide text-gray-800 dark:text-white">AutoGLM</h1>
       </div>
       
-      <div class="flex items-center gap-2">
-        <!-- 模型配置按钮 -->
-        <button 
-          @click="showSettings = true"
-          class="flex items-center justify-center w-9 h-9 rounded-lg transition-all active:scale-95 bg-white text-gray-600 border border-gray-200 hover:bg-gray-100 dark:bg-white/5 dark:text-gray-300 dark:border-white/10 dark:hover:bg-white/10"
-          title="模型配置"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
-
-        <!-- 主题切换按钮 -->
-        <button 
-          @click="toggleTheme"
-          class="flex items-center justify-center w-9 h-9 rounded-lg transition-all active:scale-95 bg-white text-amber-500 border border-gray-200 hover:bg-gray-100 dark:bg-white/5 dark:text-yellow-300 dark:border-white/10 dark:hover:bg-white/10"
-          :title="isDark ? '切换到日间模式' : '切换到夜间模式'"
-        >
-          <svg v-if="isDark" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-          <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-        </button>
-
-        <!-- 服务状态指示器 -->
-        <div 
-          class="flex items-center justify-center w-9 h-9 rounded-lg transition-all border"
-          :class="serviceEnabled ? 'bg-[#00C853]/10 border-[#00C853]/30' : 'bg-red-500/10 border-red-500/30'"
-          :title="serviceEnabled ? '服务运行中' : '服务未运行'"
-        >
-          <div class="relative flex h-3 w-3">
-            <span v-if="serviceEnabled" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00C853] opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-3 w-3" :class="serviceEnabled ? 'bg-[#00C853]' : 'bg-red-500'"></span>
-          </div>
-        </div>
-      </div>
+      <!-- 右侧: 设置按钮 (带权限状态红点) -->
+      <button 
+        @click="showSettings = true"
+        class="relative flex items-center justify-center w-9 h-9 rounded-lg transition-all active:scale-95 bg-white text-gray-600 border border-gray-200 hover:bg-gray-100 dark:bg-white/5 dark:text-gray-300 dark:border-white/10 dark:hover:bg-white/10"
+        title="设置"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        <!-- 红点: 权限未完全授予时显示 -->
+        <span 
+          v-if="needsPermissionSetup" 
+          class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 border-2 border-white dark:border-[#121212]"
+        ></span>
+      </button>
     </div>
 
-    <!-- 2. 模式选择和权限引导卡片 -->
-    <div v-if="!showSettings" class="rounded-xl p-0 shadow-lg overflow-hidden animate-fade-in-down border bg-white border-gray-200 dark:bg-[#1E1E1E] dark:border-white/5">
-      <!-- 执行模式选择 -->
-      <div class="px-4 py-3 border-b flex items-center justify-between bg-gray-50 border-gray-200 dark:bg-[#181818] dark:border-white/5">
-        <span class="font-bold text-sm text-gray-700 dark:text-gray-200">执行模式</span>
-        <div class="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-0.5">
-          <button 
-            @click="executionMode = 'accessibility'"
-            class="px-3 py-1 text-xs font-medium rounded-md transition-all"
-            :class="executionMode === 'accessibility' ? 'bg-white dark:bg-gray-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'"
-          >
-            无障碍服务
-          </button>
-          <button 
-            @click="executionMode = 'shizuku'"
-            class="px-3 py-1 text-xs font-medium rounded-md transition-all"
-            :class="executionMode === 'shizuku' ? 'bg-white dark:bg-gray-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'"
-          >
-            Shizuku ADB
-          </button>
-        </div>
-      </div>
-      
-      <div class="p-4 flex flex-col gap-3">
-        <!-- 无障碍服务模式 -->
-        <template v-if="executionMode === 'accessibility'">
-          <!-- 无障碍权限项 -->
-          <div class="flex items-center justify-between p-3 rounded-lg border transition-colors bg-gray-50 border-gray-200 dark:bg-[#121212] dark:border-white/5">
-            <div class="flex items-center gap-3">
-              <div class="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 14.14 14.14"/><path d="m14.83 9.17-5.66 5.66"/></svg>
-              </div>
-              <div class="flex flex-col">
-                <span class="text-sm font-medium text-gray-900 dark:text-white">无障碍服务</span>
-                <span class="text-xs text-gray-500">用于模拟点击和获取屏幕信息</span>
-              </div>
-            </div>
-            <button 
-              v-if="!serviceEnabled"
-              @click="openAccessibility"
-              class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-md transition-colors shadow-sm"
+    <!-- 主界面 -->
+    <div v-if="!showSettings" class="flex flex-col flex-1 min-h-0">
+            
+            <!-- 对话消息区域 -->
+            <div 
+              ref="logContainer" 
+              class="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin"
             >
-              去开启
-            </button>
-            <div v-else class="flex items-center gap-1 text-[#00C853] text-xs font-medium px-2">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-              已开启
-            </div>
-          </div>
-        </template>
-
-        <!-- Shizuku ADB 模式 -->
-        <template v-else>
-          <!-- Shizuku 状态项 -->
-          <div class="flex items-center justify-between p-3 rounded-lg border transition-colors bg-gray-50 border-gray-200 dark:bg-[#121212] dark:border-white/5">
-            <div class="flex items-center gap-3">
-              <div class="p-2 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-              </div>
-              <div class="flex flex-col">
-                <span class="text-sm font-medium text-gray-900 dark:text-white">Shizuku 服务</span>
-                <span class="text-xs text-gray-500">{{ shizukuStatus.available ? (shizukuStatus.hasPermission ? '已就绪' : '需要授权') : '请先启动 Shizuku 应用' }}</span>
-              </div>
-            </div>
-            <div v-if="shizukuStatus.available && shizukuStatus.hasPermission" class="flex items-center gap-1 text-[#00C853] text-xs font-medium px-2">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-              已就绪
-            </div>
-            <button 
-              v-else-if="shizukuStatus.available && !shizukuStatus.hasPermission"
-              @click="requestShizukuPermission"
-              class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-md transition-colors shadow-sm"
-            >
-              授权
-            </button>
-            <div v-else class="flex items-center gap-1 text-red-500 text-xs font-medium px-2">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-              未启动
-            </div>
-          </div>
-
-          <!-- 提示 -->
-          <div class="text-xs text-gray-500 dark:text-gray-400 px-1">
-            💡 请先安装 Shizuku 应用，通过无线调试或 ADB 启动服务
-          </div>
-        </template>
-      </div>
-    </div>
-
-    <!-- 悬浮窗权限提示 -->
-    <div v-if="!showSettings" class="rounded-lg p-3 border flex items-center justify-between" :class="overlayPermissionValid ? 'bg-green-50 border-green-200 dark:bg-green-500/10 dark:border-green-500/20' : 'bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20'">
-      <div class="flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" :class="overlayPermissionValid ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-        <span class="text-xs" :class="overlayPermissionValid ? 'text-green-800 dark:text-green-200' : 'text-amber-800 dark:text-amber-200'">
-          {{ overlayPermissionValid ? '悬浮窗权限已开启' : '开启悬浮窗可显示实时状态' }}
-        </span>
-      </div>
-      <template v-if="!overlayPermissionValid">
-        <button 
-          @click="requestOverlayPermission"
-          class="px-2 py-1 text-xs font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
-        >
-          去开启 →
-        </button>
-      </template>
-      <div v-else class="flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-medium">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-        已开启
-      </div>
-    </div>
-
-    <!-- 3. 主界面 & 4. API/模型页面 切换动画 -->
-    <Transition name="slide-fade" mode="out-in">
-        <!-- Main Dashboard -->
-        <div v-if="!showSettings" key="main" class="flex flex-col gap-4 flex-1 min-h-0">
-            <!-- 任务输入卡片 -->
-            <div class="rounded-xl p-5 shadow-sm border flex flex-col gap-4 animate-fade-in transition-colors bg-white border-gray-200 dark:bg-[#1E1E1E] dark:border-white/5" style="animation-delay: 0.1s;">
-              <div class="flex justify-between items-center">
-                <label class="text-sm font-bold flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-[#00C853]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                  任务指令
-                </label>
-                <button v-if="taskSchema" @click="taskSchema = ''" class="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-white transition-colors flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                  清空
-                </button>
-              </div>
-              <div class="relative">
-                <textarea 
-                  v-model="taskSchema" 
-                  class="w-full rounded-lg p-3 text-base leading-relaxed focus:outline-none focus:ring-1 transition-all resize-none min-h-[100px] bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-[#00C853] focus:ring-[#00C853] dark:bg-[#121212] dark:border-white/10 dark:text-white dark:placeholder-gray-600"
-                  placeholder="请输入需要执行的任务，例如：打开微信给文件传输助手发送你好..."
-                ></textarea>
+              <!-- 空状态 -->
+              <div v-if="logs.length === 0 && !isRunning" class="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 space-y-4 py-12">
+                <div class="w-20 h-20 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <div class="text-center">
+                  <div class="font-medium text-base text-gray-600 dark:text-gray-400">你好！我是 AutoGLM</div>
+                  <div class="text-sm mt-1">输入任务，我来帮你执行</div>
+                </div>
               </div>
               
-              <!-- 历史命令选择 -->
-              <div v-if="commandHistory.length > 0" class="flex items-center gap-2 min-w-0">
-                <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0">历史:</span>
-                <select 
-                  @change="selectHistoryCommand(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
-                  class="flex-1 min-w-0 text-sm rounded-lg p-2 bg-gray-50 border border-gray-300 text-gray-900 focus:border-[#00C853] focus:ring-1 focus:ring-[#00C853] dark:bg-[#121212] dark:border-white/10 dark:text-white"
-                  style="max-width: 100%;"
-                >
-                  <option value="">选择历史命令...</option>
-                  <option v-for="(cmd, index) in commandHistory" :key="index" :value="cmd">{{ truncateCommand(cmd, 30) }}</option>
-                </select>
-                <button 
-                  @click="clearHistory"
-                  class="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                  title="清除历史记录"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                </button>
-              </div>
-
-              <!-- 操作按钮组 -->
-              <div class="grid grid-cols-3 gap-3">
-                <button 
-                  @click="startTask" 
-                  :disabled="isRunning || !taskSchema"
-                  class="bg-[#00C853] hover:bg-[#00E676] disabled:opacity-30 disabled:cursor-not-allowed text-white dark:text-black font-bold py-3 px-4 rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 group"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 transition-transform group-hover:-translate-y-0.5 group-active:translate-y-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                  开始
-                </button>
-                
-                <button 
-                  @click="togglePause" 
-                  :disabled="!isRunning"
-                  class="bg-[#FFB300] hover:bg-[#FFCA28] disabled:opacity-20 disabled:cursor-not-allowed text-black font-bold py-3 px-4 rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
-                  <template v-if="isPaused">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                    恢复
-                  </template>
-                  <template v-else>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                    暂停
-                  </template>
-                </button>
-                
-                <button 
-                  @click="stopTask" 
-                  :disabled="!isRunning"
-                  class="bg-[#FF5252] hover:bg-[#FF8A80] disabled:opacity-20 disabled:cursor-not-allowed text-white dark:text-black font-bold py-3 px-4 rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
-                  停止
-                </button>
-              </div>
-            </div>
-
-            <!-- 日志终端卡片 -->
-            <div class="flex-1 rounded-xl border flex flex-col overflow-hidden min-h-0 shadow-sm relative animate-fade-in transition-colors bg-white border-gray-200 dark:bg-[#1E1E1E] dark:border-white/5" style="animation-delay: 0.2s;">
-              <div class="px-4 py-3 border-b flex justify-between items-center transition-colors bg-gray-50 border-gray-200 dark:bg-[#181818] dark:border-white/5">
-                <div class="flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-                    <span class="text-xs font-bold tracking-wider text-gray-500 uppercase">Terminal Output</span>
-                    <span v-if="isRunning" class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
+              <!-- 对话轮次列表 -->
+              <template v-for="turn in conversationTurns" :key="turn.id">
+                <!-- 用户消息 -->
+                <div class="flex justify-end">
+                  <div class="max-w-[80%] bg-[#00C853] text-white rounded-2xl rounded-br-sm px-4 py-2.5 shadow-sm">
+                    <div class="text-sm">{{ turn.userTask }}</div>
+                    <div class="text-[10px] text-white/60 mt-1 text-right">{{ formatTime(turn.userTimestamp) }}</div>
+                  </div>
                 </div>
-                <button @click="clearLogs" class="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-white px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                  清除
-                </button>
-              </div>
+                
+                <!-- AI 响应 (独立气泡) -->
+                <div v-if="turn.aiResponses.length > 0" class="flex flex-col gap-2 mt-2">
+                  <div v-for="(resp, idx) in turn.aiResponses" :key="idx" class="flex justify-start">
+                    <div class="max-w-[85%] rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm text-sm"
+                         :class="{
+                           'bg-white dark:bg-[#1E1E1E] text-gray-700 dark:text-gray-300 border border-gray-100 dark:border-white/5': !resp.message.includes('思考') && !resp.type.startsWith('ACTION') && resp.type !== 'ERROR',
+                           'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-800': resp.message.includes('思考') || resp.message.includes('分析'),
+                           'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800': resp.type === 'ACTION' || resp.message.startsWith('执行'),
+                           'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-100 dark:border-red-800': resp.type === 'ERROR'
+                         }">
+                      <div class="flex items-start gap-2">
+                        <!-- 图标 -->
+                        <span v-if="resp.message.includes('思考') || resp.message.includes('分析')">💭</span>
+                        <span v-else-if="resp.type === 'ACTION' || resp.message.startsWith('执行')">🎯</span>
+                        <span v-else-if="resp.type === 'ERROR'">❌</span>
+                        <span v-else-if="resp.type === 'WARNING'">⚠️</span>
+                        
+                        <!-- 消息内容 -->
+                        <div class="whitespace-pre-wrap">{{ resp.message }}</div>
+                      </div>
+                      
+                      <!-- 时间戳 -->
+                      <div class="text-[10px] opacity-40 mt-1 text-right">{{ formatTime(resp.timestamp) }}</div>
+                    </div>
+                  </div>
+                  
+                  <!-- 状态标记 (仅在最后一条显示) -->
+                  <div v-if="turn.isComplete" class="ml-2 mb-4 text-[10px] text-green-500 flex items-center gap-1">
+                    ✓ 本轮对话结束
+                  </div>
+                </div>
+              </template>
               
-              <div 
-                ref="logContainer" 
-                class="flex-1 overflow-y-auto p-4 font-mono text-xs sm:text-sm space-y-2 scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-white dark:bg-[#1E1E1E]"
-              >
-                <div v-if="logs.length === 0" class="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-700 space-y-3 opacity-60">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 stroke-[1.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 11 4-7"/><path d="m19 13-4 7"/><path d="M8 19h8"/></svg>
-                  <div class="font-medium">等待执行任务...</div>
-                </div>
-                
-                <div v-for="(log, index) in logs" :key="index" class="break-words leading-relaxed animate-fade-in pl-1 border-l-2" :class="getLogBorderColor(log.type)">
-                  <div class="flex gap-2">
-                    <span class="text-gray-400 dark:text-gray-500 text-[10px] mt-0.5 select-none font-medium opacity-70 w-[50px]">{{ formatTime(log.timestamp) }}</span>
-                    <span :class="getLogColor(log.type)" class="flex-1 whitespace-pre-wrap">
-                      {{ log.message }}
-                    </span>
+              <!-- 正在执行指示器 -->
+              <div v-if="isRunning" class="flex justify-start">
+                <div class="bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-white/10 rounded-2xl px-4 py-3 shadow-sm">
+                  <div class="flex items-center gap-2">
+                    <div class="flex gap-1">
+                      <span class="w-2 h-2 rounded-full bg-[#00C853] animate-bounce" style="animation-delay: 0ms"></span>
+                      <span class="w-2 h-2 rounded-full bg-[#00C853] animate-bounce" style="animation-delay: 150ms"></span>
+                      <span class="w-2 h-2 rounded-full bg-[#00C853] animate-bounce" style="animation-delay: 300ms"></span>
+                    </div>
+                    <span class="text-xs text-gray-500">执行中...</span>
                   </div>
                 </div>
               </div>
             </div>
+            
+            <!-- 底部输入区域 -->
+            <div class="border-t border-gray-200 dark:border-white/10 bg-white dark:bg-[#1E1E1E] p-3">
+              <!-- 执行中控制栏 -->
+              <div v-if="isRunning" class="flex items-center justify-between mb-3 px-2">
+                <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  任务执行中
+                </div>
+                <div class="flex gap-2">
+                  <button 
+                    @click="togglePause"
+                    class="px-4 py-1.5 text-sm font-medium rounded-lg transition-colors"
+                    :class="isPaused ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'"
+                  >
+                    {{ isPaused ? '▶ 继续' : '⏸ 暂停' }}
+                  </button>
+                  <button 
+                    @click="stopTask"
+                    class="px-4 py-1.5 text-sm font-medium rounded-lg bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400"
+                  >
+                    ⏹ 停止
+                  </button>
+                </div>
+              </div>
+              
+              <!-- 输入栏 -->
+              <div class="flex items-center gap-2">
+                <!-- 历史按钮 -->
+                <div class="relative" v-if="commandHistory.length > 0 && !isRunning">
+                  <button 
+                    @click="showHistoryDropdown = !showHistoryDropdown"
+                    class="w-10 h-10 rounded-xl flex items-center justify-center transition-colors bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  </button>
+                  <!-- 历史下拉菜单 -->
+                  <div v-if="showHistoryDropdown" class="absolute bottom-12 left-0 w-64 bg-white dark:bg-[#252525] border border-gray-200 dark:border-white/10 rounded-xl shadow-lg overflow-hidden z-10">
+                    <div class="px-3 py-2 border-b border-gray-100 dark:border-white/5 flex justify-between items-center">
+                      <span class="text-xs font-medium text-gray-500">历史记录</span>
+                      <button @click="clearHistory(); showHistoryDropdown = false" class="text-xs text-red-500 hover:text-red-600">清除</button>
+                    </div>
+                    <div class="max-h-48 overflow-y-auto">
+                      <button 
+                        v-for="(cmd, i) in commandHistory" 
+                        :key="i"
+                        @click="taskSchema = cmd; showHistoryDropdown = false"
+                        class="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border-b border-gray-50 dark:border-white/5 last:border-0"
+                        style="word-break: break-all; overflow-wrap: break-word;"
+                      >
+                        {{ cmd }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- 输入框 -->
+                <div class="flex-1 relative">
+                  <input 
+                    type="text"
+                    v-model="taskSchema" 
+                    @keydown.enter.exact.prevent="!isRunning && taskSchema && startTask()"
+                    @focus="showHistoryDropdown = false"
+                    class="w-full h-11 rounded-xl px-4 text-sm focus:outline-none focus:ring-2 transition-all bg-gray-100 dark:bg-[#252525] border-0 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-[#00C853]/50"
+                    :class="isRunning ? 'opacity-50' : ''"
+                    placeholder="输入任务..."
+                    :disabled="isRunning"
+                  />
+                </div>
+                
+                <!-- 发送按钮 -->
+                <button 
+                  @click="startTask" 
+                  :disabled="isRunning || !taskSchema"
+                  class="flex-shrink-0 w-11 h-11 rounded-xl bg-[#00C853] hover:bg-[#00E676] disabled:opacity-30 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all active:scale-95"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </div>
+            </div>
         </div>
 
-        <!-- 4. 模型配置页面 (Settings Page) -->
-        <div v-else key="settings" class="flex flex-col gap-4 flex-1 min-h-0 animate-fade-in-down">
+    <!-- 设置页面 -->
+    <div v-else class="flex flex-col gap-4 flex-1 min-h-0">
             <!-- 头部 -->
             <div class="flex items-center gap-3 pb-2 border-b transition-colors border-gray-200 dark:border-white/5">
                 <button @click="showSettings = false" class="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 </button>
-                <h2 class="text-lg font-bold text-gray-800 dark:text-white">API 模型配置</h2>
-                <div class="flex-1"></div>
+                <h2 class="text-lg font-bold text-gray-800 dark:text-white">设置</h2>
+            </div>
+
+            <!-- 通用设置 -->
+            <div class="rounded-xl p-4 border bg-white border-gray-200 dark:bg-[#1E1E1E] dark:border-white/5">
+                <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">通用设置</h3>
+                
+                <!-- 主题设置 -->
+                <div class="flex items-center justify-between py-2">
+                    <div>
+                        <div class="text-sm text-gray-800 dark:text-white">深色模式</div>
+                        <div class="text-xs text-gray-500">切换界面主题</div>
+                    </div>
+                    <button 
+                        @click="toggleTheme"
+                        class="w-10 h-5 rounded-full relative transition-colors shadow-inner"
+                        :class="isDark ? 'bg-[#00C853]' : 'bg-gray-300 dark:bg-gray-600'"
+                    >
+                        <span class="absolute top-1 left-1 bg-white w-3 h-3 rounded-full transition-transform shadow-sm" :class="isDark ? 'translate-x-5' : ''"></span>
+                    </button>
+                </div>
+                
+                <!-- 日志级别 -->
+                <div class="flex items-center justify-between py-2 border-t border-gray-100 dark:border-white/5">
+                    <div>
+                        <div class="text-sm text-gray-800 dark:text-white">日志级别</div>
+                        <div class="text-xs text-gray-500">控制日志详细程度</div>
+                    </div>
+                    <select 
+                        :value="logLevel"
+                        @change="saveLogLevel(Number(($event.target as HTMLSelectElement).value))"
+                        class="rounded-lg px-3 py-1.5 text-sm bg-gray-50 border border-gray-300 text-gray-900 dark:bg-[#121212] dark:border-white/10 dark:text-white"
+                    >
+                        <option v-for="opt in logLevelOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                    </select>
+                </div>
+                
+                
+                <!-- 最大步数 -->
+                <div class="flex items-center justify-between py-2 border-t border-gray-100 dark:border-white/5">
+                    <div>
+                        <div class="text-sm text-gray-800 dark:text-white">最大步数</div>
+                        <div class="text-xs text-gray-500">单次任务最大执行步数</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input 
+                            type="number" 
+                            :value="maxSteps" 
+                            @change="saveMaxSteps(Number(($event.target as HTMLInputElement).value))" 
+                            class="w-20 rounded-lg px-2 py-1.5 text-sm bg-gray-50 border border-gray-300 text-gray-900 dark:bg-[#121212] dark:border-white/10 dark:text-white text-center"
+                            min="10" max="200"
+                        >
+                    </div>
+                </div>
+
+                <!-- 开发者模式 -->
+                <div class="flex items-center justify-between py-2 border-t border-gray-100 dark:border-white/5">
+                    <div>
+                        <div class="text-sm text-gray-800 dark:text-white">开发者模式</div>
+                        <div class="text-xs text-gray-500">显示详细日志和 Set-of-Mark 预览</div>
+                    </div>
+                    <button 
+                        @click="toggleDevMode"
+                        class="w-10 h-5 rounded-full relative transition-colors shadow-inner"
+                        :class="devMode ? 'bg-[#00C853]' : 'bg-gray-300 dark:bg-gray-600'"
+                    >
+                        <span class="absolute top-1 left-1 bg-white w-3 h-3 rounded-full transition-transform shadow-sm" :class="devMode ? 'translate-x-5' : ''"></span>
+                    </button>
+                </div>
+                
+                <!-- 日志查看器入口 (仅开发者模式) -->
+                <div v-if="devMode" class="pt-2 border-t border-gray-100 dark:border-white/5">
+                    <button 
+                        @click="showLogViewer = true"
+                        class="w-full text-left px-3 py-2 rounded-lg text-sm bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-gray-300 flex items-center gap-2"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                        查看完整日志
+                    </button>
+                </div>
+            </div>
+
+            <!-- 执行模式与权限 -->
+            <div class="rounded-xl p-4 border bg-white border-gray-200 dark:bg-[#1E1E1E] dark:border-white/5">
+                <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">执行模式与权限</h3>
+                
+                <!-- 执行模式选择 -->
+                <div class="flex items-center justify-between py-2">
+                    <div>
+                        <div class="text-sm text-gray-800 dark:text-white">执行模式</div>
+                        <div class="text-xs text-gray-500">选择任务执行方式</div>
+                    </div>
+                    <div class="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-0.5">
+                        <button 
+                            @click="setMode('accessibility')"
+                            class="px-3 py-1 text-xs font-medium rounded-md transition-all"
+                            :class="executionMode === 'accessibility' ? 'bg-white dark:bg-gray-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'"
+                        >无障碍</button>
+                        <button 
+                            @click="setMode('shizuku')"
+                            class="px-3 py-1 text-xs font-medium rounded-md transition-all"
+                            :class="executionMode === 'shizuku' ? 'bg-white dark:bg-gray-600 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'"
+                        >Shizuku</button>
+                    </div>
+                </div>
+                
+                <!-- 无障碍服务 (仅无障碍模式显示) -->
+                <div v-if="executionMode === 'accessibility'" class="flex items-center justify-between py-2 border-t border-gray-100 dark:border-white/5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="serviceEnabled ? 'bg-green-100 dark:bg-green-500/20' : 'bg-red-100 dark:bg-red-500/20'">
+                            <div class="w-2.5 h-2.5 rounded-full" :class="serviceEnabled ? 'bg-[#00C853]' : 'bg-red-500'"></div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-800 dark:text-white">无障碍服务</div>
+                            <div class="text-xs text-gray-500">{{ serviceEnabled ? '已开启' : '未开启 - 用于模拟点击' }}</div>
+                        </div>
+                    </div>
+                    <button 
+                        v-if="!serviceEnabled"
+                        @click="openAccessibility"
+                        class="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-500 text-white"
+                    >去开启</button>
+                    <span v-else class="text-xs text-[#00C853] font-medium">✓ 已授权</span>
+                </div>
+                
+                <!-- Shizuku 服务 (仅Shizuku模式显示) -->
+                <div v-if="executionMode === 'shizuku'" class="flex items-center justify-between py-2 border-t border-gray-100 dark:border-white/5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="shizukuStatus.available && shizukuStatus.hasPermission ? 'bg-green-100 dark:bg-green-500/20' : 'bg-red-100 dark:bg-red-500/20'">
+                            <div class="w-2.5 h-2.5 rounded-full" :class="shizukuStatus.available && shizukuStatus.hasPermission ? 'bg-[#00C853]' : 'bg-red-500'"></div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-800 dark:text-white">Shizuku 服务</div>
+                            <div class="text-xs text-gray-500">{{ shizukuStatus.available ? (shizukuStatus.hasPermission ? '已就绪' : '需要授权') : '未启动 - 请先启动 Shizuku' }}</div>
+                        </div>
+                    </div>
+                    <button 
+                        v-if="shizukuStatus.available && !shizukuStatus.hasPermission"
+                        @click="requestShizukuPermission"
+                        class="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-600 hover:bg-purple-500 text-white"
+                    >授权</button>
+                    <span v-else-if="shizukuStatus.available && shizukuStatus.hasPermission" class="text-xs text-[#00C853] font-medium">✓ 已授权</span>
+                    <span v-else class="text-xs text-red-400">未启动</span>
+                </div>
+                
+                <!-- 悬浮窗权限 (始终显示) -->
+                <div class="flex items-center justify-between py-2 border-t border-gray-100 dark:border-white/5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="overlayPermissionValid ? 'bg-green-100 dark:bg-green-500/20' : 'bg-amber-100 dark:bg-amber-500/20'">
+                            <div class="w-2.5 h-2.5 rounded-full" :class="overlayPermissionValid ? 'bg-[#00C853]' : 'bg-amber-500'"></div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-800 dark:text-white">悬浮窗权限</div>
+                            <div class="text-xs text-gray-500">{{ overlayPermissionValid ? '已开启' : '未开启 - 显示实时状态' }}</div>
+                        </div>
+                    </div>
+                    <button 
+                        v-if="!overlayPermissionValid"
+                        @click="requestOverlayPermission"
+                        class="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-600 hover:bg-amber-500 text-white"
+                    >去开启</button>
+                    <span v-else class="text-xs text-[#00C853] font-medium">✓ 已授权</span>
+                </div>
+            </div>
+
+            <!-- API 模型配置标题 -->
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300">API 模型配置</h3>
                 <button @click="openAddDialog" class="bg-[#00C853] text-white dark:text-black px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 shadow-md hover:bg-[#00E676] transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     添加
@@ -374,6 +465,102 @@
                 </div>
             </Transition>
         </div>
+
+    <!-- Log Viewer Modal (开发者模式) -->
+    <Transition name="modal">
+      <div v-if="showLogViewer" class="fixed inset-0 bg-black/50 dark:bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="rounded-xl w-full max-w-2xl h-[80vh] border shadow-2xl overflow-hidden flex flex-col bg-white border-gray-200 dark:bg-[#1E1E1E] dark:border-white/10">
+          <div class="p-4 border-b flex justify-between items-center bg-gray-50 border-gray-200 dark:bg-[#252525] dark:border-white/5">
+            <div class="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+              <h3 class="font-bold text-gray-800 dark:text-white">完整日志</h3>
+            </div>
+            <div class="flex items-center gap-2">
+              <button @click="clearLogs" class="px-2 py-1 text-xs rounded bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300">清空</button>
+              <button @click="showLogViewer = false" class="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">✕</button>
+            </div>
+          </div>
+          
+          <div class="flex-1 overflow-y-auto p-4 font-mono text-xs space-y-1 bg-[#fafafa] dark:bg-[#121212]">
+            <div v-if="logs.length === 0" class="text-center text-gray-400 py-10">暂无日志</div>
+            <div v-for="(log, index) in logs" :key="index" class="flex gap-2 py-0.5 border-l-2 pl-2" :class="getLogBorderColor(log.type)">
+              <span class="text-gray-400 dark:text-gray-500 text-[10px] w-[50px] flex-shrink-0">{{ formatTime(log.timestamp) }}</span>
+              <span class="px-1 py-0.5 rounded text-[10px] font-medium" :class="getLogBadgeClass(log.type)">{{ log.type }}</span>
+              <span :class="getLogColor(log.type)" class="flex-1 whitespace-pre-wrap break-all">{{ log.message }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Conversation History Sidebar -->
+    <Transition name="slide-in">
+      <div v-if="showChatHistory" class="fixed inset-0 z-50 flex">
+        <div class="absolute inset-0 bg-black/30" @click="showChatHistory = false"></div>
+        <div class="relative w-72 h-full bg-white dark:bg-[#1E1E1E] shadow-xl flex flex-col">
+          <div class="p-4 border-b border-gray-200 dark:border-white/5 flex items-center justify-between">
+            <h3 class="font-bold text-gray-800 dark:text-white">对话历史</h3>
+            <button @click="showChatHistory = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-white">✕</button>
+          </div>
+          
+          <div class="flex-1 overflow-y-auto">
+            <div v-if="chatSessions.length === 0" class="text-center text-gray-400 py-10 text-sm">暂无对话历史</div>
+            <div 
+              v-for="session in chatSessions" 
+              :key="session.id"
+              @click="loadChatSession(session)"
+              class="p-3 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer group"
+            >
+              <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium text-gray-800 dark:text-white truncate">{{ session.title }}</div>
+                  <div class="text-xs text-gray-400 mt-0.5">{{ formatDate(session.createdAt) }}</div>
+                </div>
+                <button 
+                  @click.stop="deleteChatSession(session.id)"
+                  class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="p-3 border-t border-gray-200 dark:border-white/5">
+            <button 
+              @click="startNewChat(); showChatHistory = false"
+              class="w-full py-2 rounded-lg bg-[#00C853] hover:bg-[#00E676] text-white dark:text-black font-medium text-sm flex items-center justify-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              新对话
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Custom Confirm Modal -->
+    <Transition name="modal">
+      <div v-if="showConfirmModal" class="fixed inset-0 bg-black/50 dark:bg-black/70 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="w-full max-w-xs bg-white dark:bg-[#252525] rounded-2xl shadow-xl overflow-hidden">
+          <div class="p-5 text-center">
+            <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-amber-600 dark:text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <p class="text-sm text-gray-700 dark:text-gray-300">{{ confirmMessage }}</p>
+          </div>
+          <div class="flex border-t border-gray-100 dark:border-white/10">
+            <button 
+              @click="handleCancel"
+              class="flex-1 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+            >取消</button>
+            <button 
+              @click="handleConfirm"
+              class="flex-1 py-3 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors border-l border-gray-100 dark:border-white/10"
+            >确定</button>
+          </div>
+        </div>
+      </div>
     </Transition>
   </div>
 </template>
@@ -398,6 +585,24 @@ interface ApiConfig {
     customEndpoint?: string
     enabled: boolean
     priority: number
+}
+
+// Chat message types for conversational UI
+interface ChatMessage {
+    id: string
+    role: 'user' | 'assistant' | 'system'
+    content: string
+    timestamp: number
+    status?: 'thinking' | 'executing' | 'done' | 'error'
+    thinkContent?: string  // For collapsible think section
+    action?: string        // Action description
+}
+
+interface ChatSession {
+    id: string
+    title: string
+    messages: ChatMessage[]
+    createdAt: number
 }
 
 // --- Data ---
@@ -456,7 +661,12 @@ const logContainer = ref<HTMLElement | null>(null)
 const commandHistory = ref<string[]>([])
 
 // Execution mode and Shizuku state
-const executionMode = ref<'accessibility' | 'shizuku'>('accessibility')
+const savedMode = localStorage.getItem('executionMode')
+const executionMode = ref<'accessibility' | 'shizuku'>(savedMode === 'shizuku' ? 'shizuku' : 'accessibility')
+const setMode = (mode: 'accessibility' | 'shizuku') => {
+  executionMode.value = mode
+  localStorage.setItem('executionMode', mode)
+}
 const shizukuStatus = ref({
     available: false,
     hasPermission: false,
@@ -482,6 +692,13 @@ const truncateCommand = (cmd: string, maxLength = 40): string => {
 
 // Settings State
 const showSettings = ref(false)
+const showHistoryDropdown = ref(false)
+
+// Custom Confirm Modal State
+const showConfirmModal = ref(false)
+const confirmMessage = ref('')
+const confirmCallback = ref<(() => void) | null>(null)
+
 const apiConfigs = ref<ApiConfig[]>([])
 const showConfigModal = ref(false)
 const isEditing = ref(false)
@@ -496,6 +713,114 @@ const form = ref({
     enabled: true,
     priority: 0
 })
+
+// Chat UI State
+const chatMessages = ref<ChatMessage[]>([])
+const chatSessions = ref<ChatSession[]>([])
+const currentSessionId = ref<string | null>(null)
+const showChatHistory = ref(false)
+const expandedThinks = ref<Set<string>>(new Set())  // Track which think sections are expanded
+
+// Aggregate logs into conversation turns
+interface ConversationTurn {
+  id: string
+  userTask: string
+  userTimestamp: number
+  aiResponses: { type: string; message: string; timestamp: number }[]
+  isComplete: boolean
+}
+
+const conversationTurns = computed<ConversationTurn[]>(() => {
+  const turns: ConversationTurn[] = []
+  let currentTurn: ConversationTurn | null = null
+  let currentAiResponse: { type: string; message: string; timestamp: number }[] = []
+  
+  const flushAiResponse = () => {
+    if (currentTurn && currentAiResponse.length > 0) {
+      currentTurn.aiResponses.push(...currentAiResponse)
+      currentAiResponse = []
+    }
+  }
+  
+  for (const log of logs.value) {
+    if (log.type === 'INFO' && log.message.includes('开始执行任务')) {
+      flushAiResponse()
+      if (currentTurn) {
+        currentTurn.isComplete = true
+        turns.push(currentTurn)
+      }
+      currentTurn = {
+        id: `turn-${log.timestamp}`,
+        userTask: log.message.replace('开始执行任务:', '').trim() || '执行任务',
+        userTimestamp: log.timestamp,
+        aiResponses: [],
+        isComplete: false
+      }
+      continue
+    }
+    
+    if (!currentTurn) continue
+    
+    // Strict Filtering (Match Floating Window)
+    // Only allow: AI Think, Action, Command (Input), Error, Warning, specific status
+    const isRelevant = 
+      log.message.includes('AI 思考') || 
+      log.message.includes('AI Think') || 
+      log.message.includes('分析') ||
+      log.message.startsWith('执行') || 
+      log.message.startsWith('指令:') ||
+      log.type === 'ACTION' || 
+      log.type === 'ERROR' ||
+      log.type === 'WARNING' ||
+      log.message.includes('任务完成') || 
+      log.message.includes('任务停止');
+
+    if (!isRelevant) {
+      continue
+    }
+    
+    // AI thinking starts a new response cycle (but we group think+action together)
+    if (log.message && log.message.trim()) {
+      currentAiResponse.push({
+        type: log.type,
+        message: log.message,
+        timestamp: log.timestamp
+      })
+      
+      // Action or Error typically completes a thought bubble sequence
+      if (log.type === 'ACTION' || log.type === 'ERROR' || log.message.startsWith('执行')) {
+        flushAiResponse()
+      }
+    }
+    
+    if (log.message.includes('任务完成') || log.message.includes('任务停止') || log.type === 'ERROR') {
+      flushAiResponse()
+      currentTurn.isComplete = true
+    }
+  }
+  
+  flushAiResponse()
+  if (currentTurn) {
+    turns.push(currentTurn)
+  }
+  
+  return turns
+})
+
+// Settings State (Log Level, Dev Mode)
+const logLevel = ref(3)  // 0=OFF, 1=ERROR, 2=WARNING, 3=INFO, 4=DEBUG
+const maxSteps = ref(50)
+const devMode = ref(false)
+const showLogViewer = ref(false)  // For log viewer modal
+
+// Log level options
+const logLevelOptions = [
+    { value: 0, label: '关闭' },
+    { value: 1, label: '仅错误' },
+    { value: 2, label: '警告' },
+    { value: 3, label: '信息' },
+    { value: 4, label: '调试' }
+]
 
 // --- Computed ---
 const currentModels = computed(() => {
@@ -524,10 +849,19 @@ const startTask = () => {
   if (!taskSchema.value) return
   
   if (executionMode.value === 'accessibility') {
-    if (!serviceEnabled.value) { alert("请先开启无障碍服务"); openAccessibility(); return }
+    if (!serviceEnabled.value) { 
+      showCustomConfirm('请先开启无障碍服务', () => { openAccessibility() })
+      return 
+    }
   } else {
-    if (!shizukuStatus.value.available) { alert("请先启动 Shizuku 应用"); return }
-    if (!shizukuStatus.value.hasPermission) { alert("请先授权 Shizuku 权限"); requestShizukuPermission(); return }
+    if (!shizukuStatus.value.available) { 
+      showCustomConfirm('请先启动 Shizuku 应用', () => {})
+      return 
+    }
+    if (!shizukuStatus.value.hasPermission) { 
+      showCustomConfirm('请先授权 Shizuku 权限', () => { requestShizukuPermission() })
+      return 
+    }
     // 自动绑定 UserService
     if (!shizukuStatus.value.serviceBound) {
       bindShizukuService()
@@ -594,10 +928,141 @@ const selectHistoryCommand = (command: string) => {
 }
 
 const clearHistory = () => {
-    if (confirm('确定要清除所有历史命令吗？')) {
+    showCustomConfirm('确定要清除所有历史记录吗？', () => {
         Bridge.clearCommandHistory()
         commandHistory.value = []
+        showHistoryDropdown.value = false
+    })
+}
+
+// Custom Confirm Modal Functions
+const showCustomConfirm = (message: string, onConfirm: () => void) => {
+    confirmMessage.value = message
+    confirmCallback.value = onConfirm
+    showConfirmModal.value = true
+}
+
+const handleConfirm = () => {
+    if (confirmCallback.value) {
+        confirmCallback.value()
     }
+    showConfirmModal.value = false
+    confirmCallback.value = null
+}
+
+const handleCancel = () => {
+    showConfirmModal.value = false
+    confirmCallback.value = null
+}
+
+// --- Chat Actions ---
+
+const addUserMessage = (content: string) => {
+    const msg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content,
+        timestamp: Date.now()
+    }
+    chatMessages.value.push(msg)
+    saveChatToSession()
+}
+
+const addAssistantMessage = (content: string, thinkContent?: string, status: 'thinking' | 'executing' | 'done' | 'error' = 'done') => {
+    const msg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content,
+        timestamp: Date.now(),
+        status,
+        thinkContent
+    }
+    chatMessages.value.push(msg)
+    saveChatToSession()
+}
+
+const toggleThinkExpand = (msgId: string) => {
+    if (expandedThinks.value.has(msgId)) {
+        expandedThinks.value.delete(msgId)
+    } else {
+        expandedThinks.value.add(msgId)
+    }
+}
+
+const startNewChat = () => {
+    chatMessages.value = []
+    currentSessionId.value = null
+}
+
+const saveChatToSession = () => {
+    if (chatMessages.value.length === 0) return
+    
+    // Create or update session
+    const sessionId = currentSessionId.value || crypto.randomUUID()
+    const title = chatMessages.value[0]?.content?.substring(0, 30) || '新对话'
+    
+    const session: ChatSession = {
+        id: sessionId,
+        title,
+        messages: [...chatMessages.value],
+        createdAt: Date.now()
+    }
+    
+    // Update or add session
+    const existingIdx = chatSessions.value.findIndex(s => s.id === sessionId)
+    if (existingIdx >= 0) {
+        chatSessions.value[existingIdx] = session
+    } else {
+        chatSessions.value.unshift(session)
+    }
+    
+    currentSessionId.value = sessionId
+    
+    // Persist to native
+    Bridge.saveChatHistory(chatSessions.value)
+}
+
+const loadChatSession = (session: ChatSession) => {
+    chatMessages.value = [...session.messages]
+    currentSessionId.value = session.id
+    showChatHistory.value = false
+}
+
+const deleteChatSession = (sessionId: string) => {
+    chatSessions.value = chatSessions.value.filter(s => s.id !== sessionId)
+    if (currentSessionId.value === sessionId) {
+        startNewChat()
+    }
+    Bridge.saveChatHistory(chatSessions.value)
+}
+
+// --- Settings Actions ---
+
+const loadSettings = () => {
+    logLevel.value = Bridge.getLogLevel()
+    devMode.value = Bridge.getDevMode()
+    maxSteps.value = Bridge.getMaxSteps()
+    chatSessions.value = Bridge.getChatHistory()
+}
+
+const saveLogLevel = (level: number) => {
+    logLevel.value = level
+    Bridge.setLogLevel(level)
+}
+
+const saveMaxSteps = (steps: number) => {
+    // Validate range
+    let val = steps
+    if (val < 10) val = 10
+    if (val > 200) val = 200
+    
+    maxSteps.value = val
+    Bridge.setMaxSteps(val)
+}
+
+const toggleDevMode = () => {
+    devMode.value = !devMode.value
+    Bridge.setDevMode(devMode.value)
 }
 
 // --- Actions (Settings) ---
@@ -730,6 +1195,25 @@ const getLogBorderColor = (type: string) => {
   }
 }
 
+const getLogBadgeClass = (type: string) => {
+  switch (type) {
+    case 'INFO': return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
+    case 'ACTION': return 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300'
+    case 'WARNING': return 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+    case 'ERROR': return 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
+    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300'
+  }
+}
+
+const formatDate = (ts: number) => {
+  const d = new Date(ts)
+  const month = (d.getMonth() + 1).toString().padStart(2, '0')
+  const day = d.getDate().toString().padStart(2, '0')
+  const hour = d.getHours().toString().padStart(2, '0')
+  const min = d.getMinutes().toString().padStart(2, '0')
+  return `${month}/${day} ${hour}:${min}`
+}
+
 const scrollToBottom = async () => {
   await nextTick()
   if (logContainer.value) {
@@ -751,6 +1235,14 @@ onMounted(() => {
   Bridge.onLogUpdate((newLogs: LogEntry[]) => {
     logs.value = newLogs
     scrollToBottom()
+    
+    // Convert logs to chat messages for display
+    // Look for AI response patterns and extract them
+    newLogs.forEach(log => {
+      if (log.type === 'ACTION' && log.message.includes('执行:')) {
+        // This is an action being executed - could add to chat UI
+      }
+    })
   })
   Bridge.onStatusUpdate((status: string) => {
     if (status === 'running') isRunning.value = true
@@ -767,10 +1259,33 @@ onMounted(() => {
     showSettings.value = true
   })
   
+  // Handle Android back button
+  Bridge.onBackPressed(() => {
+    // Priority order: modals first, then panels
+    if (showConfigModal.value) {
+      showConfigModal.value = false
+      return true
+    }
+    if (showLogViewer.value) {
+      showLogViewer.value = false
+      return true
+    }
+    if (showChatHistory.value) {
+      showChatHistory.value = false
+      return true
+    }
+    if (showSettings.value) {
+      showSettings.value = false
+      return true
+    }
+    return false // Allow default back behavior (exit app)
+  })
+  
   checkPermissions()
   checkShizukuStatus() // Check Shizuku status
   loadApiConfigs() // Load settings on start
   loadCommandHistory() // Load command history
+  loadSettings() // Load log level, dev mode, chat history
   
   setInterval(checkPermissions, 2000)
   setInterval(checkShizukuStatus, 3000) // Periodically check Shizuku status
@@ -820,17 +1335,12 @@ onMounted(() => {
 /* View Transitions */
 .slide-fade-enter-active,
 .slide-fade-leave-active {
-  transition: all 0.3s ease-out;
+  transition: opacity 0.2s ease;
 }
 
-.slide-fade-enter-from {
-  opacity: 0;
-  transform: translateX(20px);
-}
-
+.slide-fade-enter-from,
 .slide-fade-leave-to {
   opacity: 0;
-  transform: translateX(-20px);
 }
 
 .fade-enter-active,
@@ -852,5 +1362,23 @@ onMounted(() => {
 .modal-leave-to {
   opacity: 0;
   transform: scale(0.95);
+}
+
+/* Slide-in Sidebar Animation */
+.slide-in-enter-active,
+.slide-in-leave-active {
+  transition: all 0.3s ease;
+}
+.slide-in-enter-from {
+  opacity: 0;
+}
+.slide-in-enter-from > div:last-child {
+  transform: translateX(-100%);
+}
+.slide-in-leave-to {
+  opacity: 0;
+}
+.slide-in-leave-to > div:last-child {
+  transform: translateX(-100%);
 }
 </style>
