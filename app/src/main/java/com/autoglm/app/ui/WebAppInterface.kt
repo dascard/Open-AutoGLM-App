@@ -46,6 +46,18 @@ interface WebAppListener {
 
     // 文件日志
     fun onGetFileLogContent(): String
+
+    // 自定义任务列表
+    fun onGetTaskLists(): String
+    fun onSaveTaskLists(json: String)
+
+    // 坐标选取器
+    fun onStartCoordPicker(mode: String, x1: Int, y1: Int, x2: Int, y2: Int)
+    fun onStopCoordPicker()
+
+    // 文件导入导出
+    fun onExportToFile(filename: String, content: String)
+    fun onImportFromFile()
 }
 
 class WebAppInterface(private val listener: WebAppListener) {
@@ -207,5 +219,35 @@ class WebAppInterface(private val listener: WebAppListener) {
     @JavascriptInterface
     fun getFileLogContent(): String {
         return listener.onGetFileLogContent()
+    }
+
+    @JavascriptInterface
+    fun getTaskLists(): String {
+        return listener.onGetTaskLists()
+    }
+
+    @JavascriptInterface
+    fun saveTaskLists(json: String) {
+        listener.onSaveTaskLists(json)
+    }
+
+    @JavascriptInterface
+    fun startCoordPicker(mode: String, x1: Int, y1: Int, x2: Int, y2: Int) {
+        listener.onStartCoordPicker(mode, x1, y1, x2, y2)
+    }
+
+    @JavascriptInterface
+    fun stopCoordPicker() {
+        listener.onStopCoordPicker()
+    }
+
+    @JavascriptInterface
+    fun exportToFile(filename: String, content: String) {
+        listener.onExportToFile(filename, content)
+    }
+
+    @JavascriptInterface
+    fun importFromFile() {
+        listener.onImportFromFile()
     }
 }

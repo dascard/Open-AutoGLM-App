@@ -35,6 +35,8 @@ class MainActivity : AppCompatActivity(), WebAppListener {
 
     companion object {
         private const val TAG = "MainActivity"
+        private const val REQUEST_CODE_EXPORT_FILE = 10001
+        private const val REQUEST_CODE_IMPORT_FILE = 10002
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -47,6 +49,9 @@ class MainActivity : AppCompatActivity(), WebAppListener {
     private var aiClient: AIClient? = null
     private var taskExecutor: TaskExecutor? = null
     private var shizukuTaskExecutor: ShizukuTaskExecutor? = null
+
+    // File export pending content
+    private var pendingExportContent: String? = null
 
     // Logs
     private var currentLogs = mutableListOf<LogEntry>()
@@ -218,6 +223,68 @@ class MainActivity : AppCompatActivity(), WebAppListener {
                     .setStartDelay(200)
                     .withEndAction { overlay.visibility = android.view.View.GONE }
                     .start()
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(
+            requestCode: Int,
+            resultCode: Int,
+            data: android.content.Intent?
+    ) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        when (requestCode) {
+            REQUEST_CODE_EXPORT_FILE -> {
+                if (resultCode == android.app.Activity.RESULT_OK) {
+                    data?.data?.let { uri ->
+                        try {
+                            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                                outputStream.write(
+                                        pendingExportContent?.toByteArray() ?: byteArrayOf()
+                                )
+                            }
+                            pushToastToWeb("导出成功")
+                        } catch (e: Exception) {
+                            FileLogger.e(TAG, "Export write failed: ${e.message}")
+                            pushToastToWeb("导出失败: ${e.message}")
+                        }
+                    }
+                }
+                pendingExportContent = null
+            }
+            REQUEST_CODE_IMPORT_FILE -> {
+                if (resultCode == android.app.Activity.RESULT_OK) {
+                    data?.data?.let { uri ->
+                        try {
+                            val filename = uri.lastPathSegment ?: "imported.txt"
+                            val content =
+                                    contentResolver.openInputStream(uri)?.bufferedReader()?.use {
+                                        it.readText()
+                                    }
+                                            ?: ""
+
+                            // Call JavaScript callback
+                            webView.post {
+                                val escapedFilename =
+                                        filename.replace("\"", "\\\"").replace("'", "\\'")
+                                val escapedContent =
+                                        content.replace("\\", "\\\\")
+                                                .replace("\"", "\\\"")
+                                                .replace("\n", "\\n")
+                                                .replace("\r", "")
+                                webView.evaluateJavascript(
+                                        "window.onFileImported && window.onFileImported(\"$escapedFilename\", \"$escapedContent\")",
+                                        null
+                                )
+                            }
+                        } catch (e: Exception) {
+                            FileLogger.e(TAG, "Import read failed: ${e.message}")
+                            pushToastToWeb("导入失败: ${e.message}")
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -452,6 +519,107 @@ class MainActivity : AppCompatActivity(), WebAppListener {
         val logPath = FileLogger.getLogFilePath() ?: "未知路径"
         val logContent = FileLogger.getLatestLogContent(300)
         return "📁 日志文件路径:\n$logPath\n\n📋 最近日志内容 (最后300行):\n\n$logContent"
+    }
+
+    override fun onGetTaskLists(): String {
+        return prefsManager.customTaskLists
+    }
+
+    override fun onSaveTaskLists(json: String) {
+        prefsManager.customTaskLists = json
+    }
+
+    override fun onStartCoordPicker(mode: String, x1: Int, y1: Int, x2: Int, y2: Int) {
+        // Set up callback to return coordinates to frontend
+        com.autoglm.app.service.CoordPickerService.onCoordinatesConfirmed =
+                { pickedX1, pickedY1, pickedX2, pickedY2 ->
+                    runOnUiThread {
+                        val result =
+                                if (pickedX2 != null && pickedY2 != null) {
+                                    """{"x1":$pickedX1,"y1":$pickedY1,"x2":$pickedX2,"y2":$pickedY2}"""
+                                } else {
+                                    """{"x1":$pickedX1,"y1":$pickedY1}"""
+                                }
+                        webView.evaluateJavascript(
+                                "window.onCoordPickerResult && window.onCoordPickerResult($result)",
+                                null
+                        )
+                    }
+                }
+        com.autoglm.app.service.CoordPickerService.onCancelled = {
+            runOnUiThread {
+                webView.evaluateJavascript(
+                        "window.onCoordPickerCancelled && window.onCoordPickerCancelled()",
+                        null
+                )
+            }
+        }
+
+        // Start the overlay service
+        val intent =
+                android.content.Intent(this, com.autoglm.app.service.CoordPickerService::class.java)
+                        .apply {
+                            action =
+                                    if (mode == "swipe") {
+                                        com.autoglm.app.service.CoordPickerService
+                                                .ACTION_START_SWIPE
+                                    } else {
+                                        com.autoglm.app.service.CoordPickerService
+                                                .ACTION_START_SINGLE
+                                    }
+                            putExtra(com.autoglm.app.service.CoordPickerService.EXTRA_X1, x1)
+                            putExtra(com.autoglm.app.service.CoordPickerService.EXTRA_Y1, y1)
+                            putExtra(com.autoglm.app.service.CoordPickerService.EXTRA_X2, x2)
+                            putExtra(com.autoglm.app.service.CoordPickerService.EXTRA_Y2, y2)
+                        }
+        startService(intent)
+    }
+
+    override fun onStopCoordPicker() {
+        val intent =
+                android.content.Intent(this, com.autoglm.app.service.CoordPickerService::class.java)
+                        .apply { action = com.autoglm.app.service.CoordPickerService.ACTION_STOP }
+        startService(intent)
+    }
+
+    override fun onExportToFile(filename: String, content: String) {
+        runOnUiThread {
+            try {
+                // Use SAF to save file in Downloads
+                val intent =
+                        android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT)
+                                .apply {
+                                    addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_TITLE, filename)
+                                }
+                pendingExportContent = content
+                startActivityForResult(intent, REQUEST_CODE_EXPORT_FILE)
+            } catch (e: Exception) {
+                FileLogger.e(TAG, "Export failed: ${e.message}")
+                pushToastToWeb("导出失败: ${e.message}")
+            }
+        }
+    }
+
+    override fun onImportFromFile() {
+        runOnUiThread {
+            try {
+                val intent =
+                        android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                            putExtra(
+                                    android.content.Intent.EXTRA_MIME_TYPES,
+                                    arrayOf("text/plain", "text/*", "application/octet-stream")
+                            )
+                        }
+                startActivityForResult(intent, REQUEST_CODE_IMPORT_FILE)
+            } catch (e: Exception) {
+                FileLogger.e(TAG, "Import failed: ${e.message}")
+                pushToastToWeb("导入失败: ${e.message}")
+            }
+        }
     }
 
     private fun initShizuku() {

@@ -59,9 +59,20 @@
               <template v-for="turn in conversationTurns" :key="turn.id">
                 <!-- 用户消息 -->
                 <div class="flex justify-end">
-                  <div class="max-w-[80%] bg-[#00C853] text-white rounded-2xl rounded-br-sm px-4 py-2.5 shadow-sm">
+                  <div class="max-w-[80%] bg-[#00C853] text-white rounded-2xl rounded-br-sm px-4 py-2.5 shadow-sm group relative">
                     <div class="text-sm">{{ turn.userTask }}</div>
-                    <div class="text-[10px] text-white/60 mt-1 text-right">{{ formatTime(turn.userTimestamp) }}</div>
+                    
+                    <!-- 用户消息操作栏 -->
+                    <div class="flex items-center justify-end gap-3 mt-1 pt-1 border-t border-white/20">
+                        <button 
+                            @click="copyMessage(turn.userTask)"
+                            class="text-white/60 hover:text-white transition-colors"
+                            title="复制"
+                        >
+                           <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
+                        <div class="text-[10px] text-white/60">{{ formatTime(turn.userTimestamp) }}</div>
+                    </div>
                   </div>
                 </div>
                 
@@ -83,11 +94,30 @@
                         <span v-else-if="resp.type === 'WARNING'">⚠️</span>
                         
                         <!-- 消息内容 -->
-                        <div class="whitespace-pre-wrap">{{ resp.message }}</div>
+                        <div class="whitespace-pre-wrap flex-1">{{ resp.message }}</div>
                       </div>
                       
-                      <!-- 时间戳 -->
-                      <div class="text-[10px] opacity-40 mt-1 text-right">{{ formatTime(resp.timestamp) }}</div>
+                      <!-- 底部操作栏 -->
+                      <div class="flex items-center justify-end gap-3 mt-2 pt-2 border-t border-black/5 dark:border-white/5 opacity-80">
+                         <!-- 复制 -->
+                         <button 
+                            @click="copyMessage(resp.message)"
+                            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                            title="复制"
+                         >
+                           <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                         </button>
+                         <!-- 删除 -->
+                         <button 
+                            @click="deleteMessage(resp.id)"
+                            class="text-gray-400 hover:text-red-500 transition-colors"
+                            title="删除"
+                         >
+                           <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                         </button>
+                         <!-- 时间戳 -->
+                         <div class="text-[10px] opacity-40">{{ formatTime(resp.timestamp) }}</div>
+                      </div>
                     </div>
                   </div>
                   
@@ -167,6 +197,16 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- 任务脚本/列表管理按钮 -->
+                <button 
+                  @click="openTaskManager"
+                  class="w-10 h-10 rounded-xl flex items-center justify-center transition-colors bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-400 dark:hover:bg-purple-500/20 mr-1"
+                  title="任务列表"
+                  v-if="!isRunning"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+                </button>
                 
                 <!-- 输入框 -->
                 <div class="flex-1 relative">
@@ -530,16 +570,43 @@
               class="p-3 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer group"
             >
               <div class="flex items-start justify-between">
-                <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium text-gray-800 dark:text-white truncate">{{ session.title }}</div>
-                  <div class="text-xs text-gray-400 mt-0.5">{{ formatDate(session.createdAt) }}</div>
+                <div class="flex-1 min-w-0 pr-2">
+                   <!-- 正常显示模式 -->
+                   <div v-if="editingSessionId !== session.id">
+                      <div class="text-sm font-medium text-gray-800 dark:text-white truncate" :title="session.title">{{ session.title }}</div>
+                      <div class="text-xs text-gray-400 mt-0.5">{{ formatDate(session.createdAt) }}</div>
+                   </div>
+                   <!-- 编辑模式 -->
+                   <div v-else class="flex items-center gap-1" @click.stop>
+                      <input 
+                        ref="renameInput"
+                        v-model="renameTitle"
+                        @keydown.enter="saveRenameSession(session)"
+                        @keydown.esc="cancelRenameSession"
+                        class="w-full text-sm px-1 py-0.5 rounded border border-[#00C853] bg-white dark:bg-[#121212] focus:outline-none"
+                      />
+                      <button @click="saveRenameSession(session)" class="text-green-500 hover:text-green-600"><svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+                      <button @click="cancelRenameSession" class="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                   </div>
                 </div>
-                <button 
-                  @click.stop="deleteChatSession(session.id)"
-                  class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                </button>
+                
+                <!-- 列表操作栏 -->
+                <div class="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity" v-if="editingSessionId !== session.id">
+                   <button 
+                    @click.stop="startRenameSession(session)"
+                    class="p-1 text-gray-400 hover:text-blue-500 transition-colors"
+                    title="重命名"
+                   >
+                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                   </button>
+                   <button 
+                    @click.stop="deleteChatSession(session.id)"
+                    class="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                    title="删除"
+                   >
+                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                   </button>
+                </div>
               </div>
             </div>
           </div>
@@ -625,6 +692,407 @@
         </div>
       </div>
     </Transition>
+
+    <!-- Task Manager Modal -->
+    <Transition name="modal">
+        <div v-if="showTaskManager" class="fixed inset-0 bg-black/50 dark:bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="rounded-xl w-full max-w-md border shadow-2xl overflow-hidden flex flex-col max-h-[85vh] bg-white border-gray-200 dark:bg-[#1E1E1E] dark:border-white/10">
+                <div class="p-4 border-b flex justify-between items-center bg-gray-50 border-gray-200 dark:bg-[#252525] dark:border-white/5">
+                    <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+                        任务列表管理
+                    </h3>
+                    <button @click="showTaskManager = false" class="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">✕</button>
+                </div>
+                
+                <div class="p-2 border-b border-gray-100 dark:border-white/5 flex gap-1.5 flex-wrap">
+                    <button @click="createNewTaskList" class="flex items-center gap-1 px-2 py-1 bg-[#00C853] text-white rounded-md text-xs font-medium hover:bg-[#00E676]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        新建
+                    </button>
+                    <button @click="openImportModal" class="flex items-center gap-1 px-2 py-1 bg-blue-500/10 text-blue-500 dark:text-blue-300 rounded-md text-xs font-medium hover:bg-blue-500/20">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="14 9 9 4 4 9"/><path d="M20 20h-7a4 4 0 0 1-4-4V4"/></svg>
+                        对话
+                    </button>
+                    <button @click="importFromFile" class="flex items-center gap-1 px-2 py-1 bg-purple-500/10 text-purple-500 dark:text-purple-300 rounded-md text-xs font-medium hover:bg-purple-500/20">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        文件
+                    </button>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto p-2 space-y-1.5">
+                    <div v-if="customTaskLists.length === 0" class="text-center py-8 text-gray-400 text-sm">
+                        暂无任务列表
+                    </div>
+                    <div v-for="list in customTaskLists" :key="list.id" class="border rounded-lg p-2 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/5 group hover:border-purple-300 dark:hover:border-purple-500/50 transition-colors">
+                        <div class="flex justify-between items-center">
+                            <div class="flex-1 min-w-0">
+                                <div class="font-medium text-sm text-gray-800 dark:text-gray-200 truncate">{{ list.name }}</div>
+                                <div class="text-[10px] text-gray-400 flex items-center gap-1">
+                                    <span>{{ getScriptLineCount(list.script) }}条</span>
+                                    <span>·</span>
+                                    <span>{{ formatDate(list.createdAt) }}</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1 ml-2">
+                                <button @click="runTaskList(list)" class="px-2 py-0.5 bg-purple-600 text-white rounded text-[10px] font-bold hover:bg-purple-500 flex items-center gap-0.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                    运行
+                                </button>
+                                <button @click="exportTaskList(list)" class="p-1 text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded" title="导出">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                </button>
+                                <button @click="editTaskList(list)" class="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded" title="编辑">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                </button>
+                                <button @click="deleteTaskList(list.id)" class="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded" title="删除">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </Transition>
+
+    <!-- Task Editor Modal -->
+    <Transition name="modal">
+        <div v-if="showTaskEditor" class="fixed inset-0 bg-black/50 dark:bg-black/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="rounded-xl w-full max-w-lg border shadow-2xl overflow-hidden flex flex-col h-[80vh] bg-white border-gray-200 dark:bg-[#1E1E1E] dark:border-white/10">
+                <div class="p-4 border-b flex justify-between items-center bg-gray-50 border-gray-200 dark:bg-[#252525] dark:border-white/5">
+                    <h3 class="font-bold text-gray-800 dark:text-white">编辑任务列表</h3>
+                    <button @click="showTaskEditor = false" class="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">✕</button>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-400">列表名称</label>
+                        <input v-model="editingList.name" class="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#00C853] bg-white border border-gray-300 text-gray-900 dark:bg-[#121212] dark:border-white/10 dark:text-white" placeholder="任务列表名称">
+                    </div>
+                    
+                    <div class="flex-1 flex flex-col min-h-0">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">脚本指令 ({{ editingCommands.length }} 条)</label>
+                            <button 
+                                @click="addScriptCommand"
+                                class="flex items-center gap-1 px-2 py-1 bg-[#00C853] text-white rounded text-xs font-medium hover:bg-[#00E676]"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                添加
+                            </button>
+                        </div>
+                        
+                        <div class="flex-1 overflow-y-auto space-y-1 max-h-[50vh]">
+                            <div v-if="editingCommands.length === 0" class="text-center py-8 text-gray-400 text-sm">
+                                暂无指令，点击"添加"开始
+                            </div>
+                            
+                            <!-- Scratch-style block rendering -->
+                            <template v-for="(cmd, idx) in editingCommands" :key="idx">
+                                <!-- Loop/Loop_time block start (C-shaped wrapper) -->
+                                <div v-if="cmd.type === 'loop' || cmd.type === 'loop_time'"
+                                    class="relative"
+                                    :class="getLoopBlockClass(cmd.type)"
+                                >
+                                    <!-- Loop header -->
+                                    <div class="flex items-center gap-2 p-2 rounded-t-lg cursor-pointer select-none"
+                                        :class="getLoopHeaderClass(cmd.type)"
+                                        @click="toggleBlockCollapsed(idx)"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform" :class="{'rotate-90': !collapsedBlocks[idx]}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                        <span class="text-white font-bold text-sm">{{ cmd.type === 'loop' ? '🔄 循环' : '⏱️ 定时循环' }}</span>
+                                        <input 
+                                            v-model="editingCommands[idx].param1"
+                                            @click.stop
+                                            class="w-16 px-2 py-0.5 rounded text-xs font-mono bg-white/20 border border-white/30 text-white placeholder-white/50 focus:outline-none focus:bg-white/30"
+                                            :placeholder="cmd.type === 'loop' ? '次数' : '毫秒'"
+                                        />
+                                        <span class="text-white/80 text-xs">{{ cmd.type === 'loop' ? '次' : 'ms' }}</span>
+                                        <div class="flex-1"></div>
+                                        <button @click.stop="removeCommand(idx)" class="p-1 text-white/60 hover:text-white">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                        </button>
+                                    </div>
+                                    <!-- Nested content area (collapsible) -->
+                                    <div v-show="!collapsedBlocks[idx]" class="pl-4 py-1 border-l-4"
+                                        :class="getLoopContentBorderClass(cmd.type)"
+                                    >
+                                        <div class="text-xs text-gray-400 dark:text-gray-500 py-1 italic">
+                                            (以下命令将循环执行)
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Repeat Start block -->
+                                <div v-else-if="cmd.type === 'repeat_start'"
+                                    class="border-l-4 border-purple-500 bg-purple-600 rounded-lg p-2 flex items-center gap-2"
+                                >
+                                    <span class="text-white font-bold text-sm">🔁 重复开始</span>
+                                    <div class="flex-1"></div>
+                                    <button @click="removeCommand(idx)" class="p-1 text-white/60 hover:text-white">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                                
+                                <!-- Repeat End block -->
+                                <div v-else-if="cmd.type === 'repeat_end'"
+                                    class="border-l-4 border-purple-500 bg-purple-500 rounded-lg p-2 flex items-center gap-2"
+                                >
+                                    <span class="text-white font-bold text-sm">🔁 重复结束</span>
+                                    <input 
+                                        v-model="editingCommands[idx].param1"
+                                        class="w-16 px-2 py-0.5 rounded text-xs font-mono bg-white/20 border border-white/30 text-white placeholder-white/50 focus:outline-none focus:bg-white/30"
+                                        placeholder="次数"
+                                    />
+                                    <span class="text-white/70 text-xs">次</span>
+                                    <div class="flex-1"></div>
+                                    <button @click="removeCommand(idx)" class="p-1 text-white/60 hover:text-white">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                                
+                                <!-- Repeat Next Command -->
+                                <div v-else-if="cmd.type === 'repeat'"
+                                    class="flex items-center gap-2 p-2 rounded-lg bg-indigo-600"
+                                >
+                                    <span class="text-white font-bold text-sm">🔁 重复下条</span>
+                                    <input 
+                                        v-model="editingCommands[idx].param1"
+                                        class="w-16 px-2 py-0.5 rounded text-xs font-mono bg-white/20 border border-white/30 text-white placeholder-white/50 focus:outline-none focus:bg-white/30"
+                                        placeholder="次数"
+                                    />
+                                    <span class="text-white/80 text-xs">次</span>
+                                    <div class="flex-1"></div>
+                                    <button @click="removeCommand(idx)" class="p-1 text-white/60 hover:text-white">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                                
+                                <!-- Regular command card -->
+                                <div v-else
+                                    class="p-2 rounded-lg border bg-gray-50 border-gray-200 dark:bg-white/5 dark:border-white/10 group"
+                                    :class="getCommandNestingClass(idx)"
+                                >
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <!-- Reorder buttons -->
+                                        <div class="flex flex-col gap-0.5">
+                                            <button 
+                                                @click="moveCommandUp(idx)" 
+                                                :disabled="idx === 0"
+                                                class="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+                                            </button>
+                                            <button 
+                                                @click="moveCommandDown(idx)" 
+                                                :disabled="idx === editingCommands.length - 1"
+                                                class="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                                            </button>
+                                        </div>
+                                        
+                                        <span class="text-xs text-gray-400 w-5">{{ idx + 1 }}</span>
+                                        
+                                        <!-- Command type dropdown -->
+                                        <select 
+                                            v-model="editingCommands[idx].type"
+                                            class="px-2 py-1.5 rounded border text-sm bg-white border-gray-300 text-gray-800 dark:bg-[#121212] dark:border-white/10 dark:text-gray-300 focus:outline-none focus:border-[#00C853]"
+                                        >
+                                            <option v-for="ct in commandTypes" :key="ct.id" :value="ct.id">{{ ct.label }}</option>
+                                        </select>
+                                        
+                                        <!-- Coordinate picker button (for tap, swipe, etc) -->
+                                        <button 
+                                            v-if="needsCoordinates(cmd.type)"
+                                            @click="openCoordPicker(idx)"
+                                            class="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 flex items-center gap-1"
+                                            title="选取坐标"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                                            选取
+                                        </button>
+                                        
+                                        <div class="flex-1"></div>
+                                        
+                                        <!-- Delete button -->
+                                        <button 
+                                            @click="removeCommand(idx)"
+                                            class="p-1 text-red-400 hover:text-red-600 opacity-50 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Dynamic parameter inputs -->
+                                    <div v-if="getCommandParams(cmd.type).length > 0" class="flex flex-wrap gap-2 ml-10">
+                                        <div v-if="getCommandParams(cmd.type).length >= 1" class="flex items-center gap-1">
+                                            <span class="text-xs text-gray-400">{{ getCommandParams(cmd.type)[0] }}:</span>
+                                            <input 
+                                                v-model="editingCommands[idx].param1"
+                                                class="w-20 px-2 py-1 rounded border text-xs font-mono bg-white border-gray-300 text-gray-800 dark:bg-[#121212] dark:border-white/10 dark:text-gray-300 focus:outline-none focus:border-[#00C853]"
+                                                :placeholder="getCommandParams(cmd.type)[0]"
+                                            />
+                                        </div>
+                                        <div v-if="getCommandParams(cmd.type).length >= 2" class="flex items-center gap-1">
+                                            <span class="text-xs text-gray-400">{{ getCommandParams(cmd.type)[1] }}:</span>
+                                            <input 
+                                                v-model="editingCommands[idx].param2"
+                                                class="w-20 px-2 py-1 rounded border text-xs font-mono bg-white border-gray-300 text-gray-800 dark:bg-[#121212] dark:border-white/10 dark:text-gray-300 focus:outline-none focus:border-[#00C853]"
+                                                :placeholder="getCommandParams(cmd.type)[1]"
+                                            />
+                                        </div>
+                                        <div v-if="getCommandParams(cmd.type).length >= 3" class="flex items-center gap-1">
+                                            <span class="text-xs text-gray-400">{{ getCommandParams(cmd.type)[2] }}:</span>
+                                            <input 
+                                                v-model="editingCommands[idx].param3"
+                                                class="w-20 px-2 py-1 rounded border text-xs font-mono bg-white border-gray-300 text-gray-800 dark:bg-[#121212] dark:border-white/10 dark:text-gray-300 focus:outline-none focus:border-[#00C853]"
+                                                :placeholder="getCommandParams(cmd.type)[2]"
+                                            />
+                                        </div>
+                                        <div v-if="getCommandParams(cmd.type).length >= 4" class="flex items-center gap-1">
+                                            <span class="text-xs text-gray-400">{{ getCommandParams(cmd.type)[3] }}:</span>
+                                            <input 
+                                                v-model="editingCommands[idx].param4"
+                                                class="w-20 px-2 py-1 rounded border text-xs font-mono bg-white border-gray-300 text-gray-800 dark:bg-[#121212] dark:border-white/10 dark:text-gray-300 focus:outline-none focus:border-[#00C853]"
+                                                :placeholder="getCommandParams(cmd.type)[3]"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="p-4 border-t flex gap-3 bg-gray-50 border-gray-200 dark:bg-[#252525] dark:border-white/5">
+                    <button @click="showTaskEditor = false" class="flex-1 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-sm font-medium transition-colors">取消</button>
+                    <button @click="saveTaskList" class="flex-1 py-2 rounded-lg bg-[#00C853] hover:bg-[#00E676] text-white dark:text-black text-sm font-bold transition-colors">保存</button>
+                </div>
+            </div>
+        </div>
+    </Transition>
+
+    <!-- Import Modal -->
+    <Transition name="modal">
+        <div v-if="showImportModal" class="fixed inset-0 bg-black/50 dark:bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="rounded-xl w-full max-w-md border shadow-2xl overflow-hidden flex flex-col max-h-[85vh] bg-white border-gray-200 dark:bg-[#1E1E1E] dark:border-white/10">
+                <div class="p-4 border-b flex justify-between items-center bg-gray-50 border-gray-200 dark:bg-[#252525] dark:border-white/5">
+                    <h3 class="font-bold text-gray-800 dark:text-white">从对话导入指令</h3>
+                    <button @click="showImportModal = false" class="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">✕</button>
+                </div>
+                
+                <div class="p-3 border-b border-gray-100 dark:border-white/5">
+                    <label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-400">选择对话会话</label>
+                    <select v-model="importSelection.sessionId" class="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#00C853] bg-white border border-gray-300 text-gray-900 dark:bg-[#121212] dark:border-white/10 dark:text-white">
+                        <option v-for="s in chatSessions" :key="s.id" :value="s.id">{{ s.title }} ({{ formatDate(s.createdAt) }})</option>
+                    </select>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto p-2 space-y-1">
+                    <div v-if="getSessionMessages.length === 0" class="text-center py-8 text-gray-400 text-sm">该会话无可导入的脚本命令</div>
+                    <div 
+                        v-for="(msg, idx) in getSessionMessages" 
+                        :key="idx"
+                        @click="toggleImportSelection(idx)"
+                        class="p-2 rounded-lg border cursor-pointer transition-colors text-sm flex items-start gap-2"
+                        :class="importSelection.selectedIndices.has(idx) ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'bg-white border-gray-100 dark:bg-white/5 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/10'"
+                    >
+                        <div class="w-4 h-4 rounded border flex items-center justify-center mt-0.5 bg-white dark:bg-transparent" :class="importSelection.selectedIndices.has(idx) ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-gray-600'">
+                            <svg v-if="importSelection.selectedIndices.has(idx)" xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </div>
+                        <code class="flex-1 text-green-600 dark:text-green-400 break-all font-mono text-xs">{{ msg.content }}</code>
+                    </div>
+                </div>
+                
+                <div class="p-4 border-t flex gap-3 bg-gray-50 border-gray-200 dark:bg-[#252525] dark:border-white/5">
+                    <button @click="showImportModal = false" class="flex-1 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-sm font-medium transition-colors">取消</button>
+                    <button @click="importSelectedTasks" class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors">
+                        导入选中 ({{ importSelection.selectedIndices.size }})
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Transition>
+
+    <!-- Coordinate Picker Modal -->
+    <Transition name="modal">
+        <div v-if="showCoordPicker" class="fixed inset-0 bg-black/70 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="rounded-xl w-full max-w-sm border shadow-2xl overflow-hidden flex flex-col bg-white border-gray-200 dark:bg-[#1E1E1E] dark:border-white/10">
+                <div class="p-4 border-b flex justify-between items-center bg-gray-50 border-gray-200 dark:bg-[#252525] dark:border-white/5">
+                    <h3 class="font-bold text-gray-800 dark:text-white">选取坐标</h3>
+                    <button @click="showCoordPicker = false" class="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">✕</button>
+                </div>
+                
+                <div class="p-4">
+                    <!-- Visual phone screen (1000x1000 normalized) -->
+                    <div 
+                        class="relative w-full aspect-[9/16] bg-gradient-to-b from-gray-800 to-gray-900 rounded-lg overflow-hidden border-4 border-gray-700"
+                        @click="handlePickerClick"
+                        ref="pickerArea"
+                    >
+                        <!-- Grid lines -->
+                        <div class="absolute inset-0 opacity-20">
+                            <div v-for="i in 9" :key="'v'+i" class="absolute bg-white/30" :style="{left: (i*10)+'%', top: 0, width: '1px', height: '100%'}"></div>
+                            <div v-for="i in 9" :key="'h'+i" class="absolute bg-white/30" :style="{top: (i*10)+'%', left: 0, height: '1px', width: '100%'}"></div>
+                        </div>
+                        
+                        <!-- Start marker (for single tap or swipe start) -->
+                        <div 
+                            class="absolute w-8 h-8 bg-green-500 rounded-full border-2 border-white shadow-lg cursor-move flex items-center justify-center transform -translate-x-1/2 -translate-y-1/2 z-10"
+                            :style="{left: (pickerX1/10) + '%', top: (pickerY1/10) + '%'}"
+                            @mousedown="startDrag($event, 'start')"
+                            @touchstart.prevent="startDrag($event, 'start')"
+                        >
+                            <span class="text-white text-xs font-bold">{{ coordPickerMode === 'swipe' ? '起' : '●' }}</span>
+                        </div>
+                        
+                        <!-- End marker (for swipe only) -->
+                        <div 
+                            v-if="coordPickerMode === 'swipe'"
+                            class="absolute w-8 h-8 bg-red-500 rounded-full border-2 border-white shadow-lg cursor-move flex items-center justify-center transform -translate-x-1/2 -translate-y-1/2 z-10"
+                            :style="{left: (pickerX2/10) + '%', top: (pickerY2/10) + '%'}"
+                            @mousedown="startDrag($event, 'end')"
+                            @touchstart.prevent="startDrag($event, 'end')"
+                        >
+                            <span class="text-white text-xs font-bold">终</span>
+                        </div>
+                        
+                        <!-- Line between markers for swipe -->
+                        <svg v-if="coordPickerMode === 'swipe'" class="absolute inset-0 w-full h-full pointer-events-none">
+                            <line 
+                                :x1="(pickerX1/10) + '%'" 
+                                :y1="(pickerY1/10) + '%'" 
+                                :x2="(pickerX2/10) + '%'" 
+                                :y2="(pickerY2/10) + '%'" 
+                                stroke="white" 
+                                stroke-width="2"
+                                stroke-dasharray="8,4"
+                            />
+                        </svg>
+                    </div>
+                    
+                    <!-- Coordinate display -->
+                    <div class="mt-3 text-center text-sm text-gray-600 dark:text-gray-400">
+                        <div v-if="coordPickerMode === 'single'">
+                            坐标: <span class="font-mono font-bold text-green-500">{{ pickerX1 }}, {{ pickerY1 }}</span>
+                        </div>
+                        <div v-else class="flex justify-center gap-4">
+                            <span>起点: <span class="font-mono font-bold text-green-500">{{ pickerX1 }}, {{ pickerY1 }}</span></span>
+                            <span>终点: <span class="font-mono font-bold text-red-500">{{ pickerX2 }}, {{ pickerY2 }}</span></span>
+                        </div>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-400 text-center">拖动圆点调整位置 (范围: 0-1000)</p>
+                </div>
+                
+                <div class="p-4 border-t flex gap-3 bg-gray-50 border-gray-200 dark:bg-[#252525] dark:border-white/5">
+                    <button @click="showCoordPicker = false" class="flex-1 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-sm font-medium transition-colors">取消</button>
+                    <button @click="applyPickedCoords" class="flex-1 py-2 rounded-lg bg-[#00C853] hover:bg-[#00E676] text-white dark:text-black text-sm font-bold transition-colors">应用</button>
+                </div>
+            </div>
+        </div>
+    </Transition>
   </div>
 </template>
 
@@ -637,6 +1105,7 @@ interface LogEntry {
   timestamp: number
   type: string
   message: string
+  id?: string // Added ID support
 }
 
 interface ApiConfig {
@@ -665,6 +1134,13 @@ interface ChatSession {
     id: string
     title: string
     messages: ChatMessage[]
+    createdAt: number
+}
+
+interface TaskList {
+    id: string
+    name: string
+    script: string
     createdAt: number
 }
 
@@ -772,6 +1248,316 @@ const showConfirmModal = ref(false)
 const confirmMessage = ref('')
 const confirmCallback = ref<(() => void) | null>(null)
 
+// Task List State
+const customTaskLists = ref<TaskList[]>([])
+const showTaskManager = ref(false)
+const showTaskEditor = ref(false)
+const showImportModal = ref(false)
+const editingList = ref<TaskList>({
+    id: '',
+    name: '',
+    script: '',
+    createdAt: 0
+})
+const importSelection = ref<{sessionId: string, selectedIndices: Set<number>}>({
+    sessionId: '',
+    selectedIndices: new Set()
+})
+
+// Command type definitions
+interface ScriptCommand {
+    type: string
+    param1: string
+    param2: string
+    param3: string
+    param4: string
+}
+
+const commandTypes = [
+    { id: 'tap', label: '点击', params: ['X坐标', 'Y坐标'], needsCoord: true },
+    { id: 'doubletap', label: '双击', params: ['X坐标', 'Y坐标'], needsCoord: true },
+    { id: 'swipe', label: '滑动', params: ['起始X', '起始Y', '结束X', '结束Y'], needsCoord: true },
+    { id: 'longpress', label: '长按', params: ['X坐标', 'Y坐标'], needsCoord: true },
+    { id: 'wait', label: '等待', params: ['毫秒'], needsCoord: false },
+    { id: 'type', label: '输入文字', params: ['文本内容'], needsCoord: false },
+    { id: 'launch', label: '启动应用', params: ['应用包名或名称'], needsCoord: false },
+    { id: 'back', label: '返回', params: [], needsCoord: false },
+    { id: 'home', label: '主屏幕', params: [], needsCoord: false },
+    { id: 'enter', label: '回车', params: [], needsCoord: false },
+    { id: 'keyevent', label: '按键', params: ['键码'], needsCoord: false },
+    { id: 'shell', label: 'Shell命令', params: ['命令'], needsCoord: false },
+    // Loop and repeat commands
+    { id: 'loop', label: '🔄 循环执行', params: ['次数'], needsCoord: false },
+    { id: 'loop_time', label: '⏱️ 定时循环', params: ['毫秒'], needsCoord: false },
+    { id: 'repeat', label: '🔁 重复下条', params: ['次数'], needsCoord: false },
+    { id: 'repeat_start', label: '📍 重复开始', params: [], needsCoord: false },
+    { id: 'repeat_end', label: '📍 重复结束', params: ['次数或时间ms'], needsCoord: false },
+]
+
+// Structured commands for editing
+const editingCommands = ref<ScriptCommand[]>([])
+
+// Coordinate Picker State
+const showCoordPicker = ref(false)
+const coordPickerIndex = ref(-1) // Which command is being edited
+const coordPickerMode = ref<'single' | 'swipe'>('single')
+const pickerX1 = ref(500)
+const pickerY1 = ref(500)
+const pickerX2 = ref(500)
+const pickerY2 = ref(800)
+
+// Scratch-style block collapse state
+const collapsedBlocks = ref<Record<number, boolean>>({})
+
+const toggleBlockCollapsed = (idx: number) => {
+    collapsedBlocks.value[idx] = !collapsedBlocks.value[idx]
+}
+
+const getLoopBlockClass = (type: string) => {
+    return '' // Additional wrapper classes if needed
+}
+
+const getLoopHeaderClass = (type: string) => {
+    if (type === 'loop') return 'bg-amber-600 hover:bg-amber-500'
+    if (type === 'loop_time') return 'bg-orange-600 hover:bg-orange-500'
+    return 'bg-gray-600'
+}
+
+const getLoopContentBorderClass = (type: string) => {
+    if (type === 'loop') return 'border-amber-400'
+    if (type === 'loop_time') return 'border-orange-400'
+    return 'border-gray-400'
+}
+
+const getCommandNestingClass = (idx: number) => {
+    // Check if this command is inside a repeat_start/repeat_end block
+    // Note: loop and loop_time are single-line commands, not block markers
+    let nestingLevel = 0
+    for (let i = 0; i < idx; i++) {
+        const cmd = editingCommands.value[i]
+        if (cmd.type === 'repeat_start') {
+            nestingLevel++
+        } else if (cmd.type === 'repeat_end') {
+            nestingLevel = Math.max(0, nestingLevel - 1)
+        }
+    }
+    
+    if (nestingLevel > 0) {
+        // Strong visual nesting: left indent, purple left border and background
+        return 'ml-6 pl-2 border-l-4 border-purple-500 bg-purple-100/50 dark:bg-purple-900/30 rounded-l-none'
+    }
+    return ''
+}
+
+const needsCoordinates = (type: string) => {
+    const cmd = commandTypes.find(c => c.id === type)
+    return cmd?.needsCoord ?? false
+}
+
+// Command manipulation functions
+const addScriptCommand = () => {
+    editingCommands.value.push({
+        type: 'tap',
+        param1: '',
+        param2: '',
+        param3: '',
+        param4: ''
+    })
+}
+
+const removeCommand = (idx: number) => {
+    editingCommands.value.splice(idx, 1)
+}
+
+const moveCommandUp = (idx: number) => {
+    if (idx > 0) {
+        const temp = editingCommands.value[idx]
+        editingCommands.value[idx] = editingCommands.value[idx - 1]
+        editingCommands.value[idx - 1] = temp
+    }
+}
+
+const moveCommandDown = (idx: number) => {
+    if (idx < editingCommands.value.length - 1) {
+        const temp = editingCommands.value[idx]
+        editingCommands.value[idx] = editingCommands.value[idx + 1]
+        editingCommands.value[idx + 1] = temp
+    }
+}
+
+const getCommandParams = (type: string) => {
+    return commandTypes.find(c => c.id === type)?.params || []
+}
+
+// Convert structured command to script line
+const commandToScript = (cmd: ScriptCommand): string => {
+    const params = [cmd.param1, cmd.param2, cmd.param3, cmd.param4].filter(p => p.trim())
+    if (['tap', 'doubletap', 'longpress'].includes(cmd.type)) {
+        return `#${cmd.type} ${cmd.param1},${cmd.param2}`
+    } else if (cmd.type === 'swipe') {
+        return `#swipe ${cmd.param1},${cmd.param2},${cmd.param3},${cmd.param4}`
+    } else if (['back', 'home', 'enter', 'repeat_start'].includes(cmd.type)) {
+        return `#${cmd.type}`
+    } else if (['wait', 'loop', 'loop_time', 'repeat', 'repeat_end'].includes(cmd.type)) {
+        return `#${cmd.type} ${cmd.param1}`
+    } else {
+        return `#${cmd.type} ${params.join(' ')}`
+    }
+}
+
+// Parse script line to structured command
+const scriptToCommand = (line: string): ScriptCommand => {
+    const cmd: ScriptCommand = { type: 'tap', param1: '', param2: '', param3: '', param4: '' }
+    if (!line.startsWith('#')) return cmd
+    
+    const parts = line.substring(1).split(' ', 2)
+    cmd.type = parts[0].toLowerCase()
+    const args = parts[1] || ''
+    
+    if (['tap', 'doubletap', 'longpress'].includes(cmd.type)) {
+        const coords = args.split(',')
+        cmd.param1 = coords[0]?.trim() || ''
+        cmd.param2 = coords[1]?.trim() || ''
+    } else if (cmd.type === 'swipe') {
+        const coords = args.split(',')
+        cmd.param1 = coords[0]?.trim() || ''
+        cmd.param2 = coords[1]?.trim() || ''
+        cmd.param3 = coords[2]?.trim() || ''
+        cmd.param4 = coords[3]?.trim() || ''
+    } else if (['back', 'home', 'enter', 'repeat_start'].includes(cmd.type)) {
+        // No params
+    } else {
+        // For wait, loop, loop_time, repeat, repeat_end, type, launch, etc.
+        cmd.param1 = args
+    }
+    
+    return cmd
+}
+
+// Open coordinate picker for a command
+const openCoordPicker = (idx: number) => {
+    const cmd = editingCommands.value[idx]
+    coordPickerIndex.value = idx
+    
+    const x1 = parseInt(cmd.param1) || 500
+    const y1 = parseInt(cmd.param2) || 500
+    const x2 = parseInt(cmd.param3) || 500
+    const y2 = parseInt(cmd.param4) || 800
+    const mode = cmd.type === 'swipe' ? 'swipe' : 'single'
+    
+    // Use native overlay picker via Bridge
+    Bridge.startCoordPicker(
+        mode,
+        x1,
+        y1,
+        x2,
+        y2,
+        (result) => {
+            // Apply picked coordinates back to command
+            const editCmd = editingCommands.value[idx]
+            if (!editCmd) return
+            
+            editCmd.param1 = String(result.x1)
+            editCmd.param2 = String(result.y1)
+            
+            if (mode === 'swipe' && result.x2 !== undefined && result.y2 !== undefined) {
+                editCmd.param3 = String(result.x2)
+                editCmd.param4 = String(result.y2)
+            }
+        },
+        () => {
+            // Cancelled - do nothing
+        }
+    )
+}
+
+// Apply picked coordinates back to command
+const applyPickedCoords = () => {
+    const idx = coordPickerIndex.value
+    if (idx < 0 || idx >= editingCommands.value.length) return
+    
+    const cmd = editingCommands.value[idx]
+    cmd.param1 = String(pickerX1.value)
+    cmd.param2 = String(pickerY1.value)
+    
+    if (cmd.type === 'swipe') {
+        cmd.param3 = String(pickerX2.value)
+        cmd.param4 = String(pickerY2.value)
+    }
+    
+    showCoordPicker.value = false
+}
+
+// Picker area reference
+const pickerArea = ref<HTMLElement | null>(null)
+const draggingMarker = ref<'start' | 'end' | null>(null)
+
+// Handle clicks on the picker area to position marker
+const handlePickerClick = (event: MouseEvent) => {
+    if (!pickerArea.value || draggingMarker.value) return
+    
+    const rect = pickerArea.value.getBoundingClientRect()
+    const x = Math.round(((event.clientX - rect.left) / rect.width) * 1000)
+    const y = Math.round(((event.clientY - rect.top) / rect.height) * 1000)
+    
+    // Clamp to 0-1000
+    const clampedX = Math.max(0, Math.min(1000, x))
+    const clampedY = Math.max(0, Math.min(1000, y))
+    
+    if (coordPickerMode.value === 'single') {
+        pickerX1.value = clampedX
+        pickerY1.value = clampedY
+    }
+}
+
+// Start dragging a marker
+const startDrag = (event: MouseEvent | TouchEvent, marker: 'start' | 'end') => {
+    event.preventDefault()
+    draggingMarker.value = marker
+    
+    const moveHandler = (e: MouseEvent | TouchEvent) => {
+        if (!pickerArea.value || !draggingMarker.value) return
+        
+        const rect = pickerArea.value.getBoundingClientRect()
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+        
+        const x = Math.round(((clientX - rect.left) / rect.width) * 1000)
+        const y = Math.round(((clientY - rect.top) / rect.height) * 1000)
+        
+        // Clamp to 0-1000
+        const clampedX = Math.max(0, Math.min(1000, x))
+        const clampedY = Math.max(0, Math.min(1000, y))
+        
+        if (draggingMarker.value === 'start') {
+            pickerX1.value = clampedX
+            pickerY1.value = clampedY
+        } else {
+            pickerX2.value = clampedX
+            pickerY2.value = clampedY
+        }
+    }
+    
+    const upHandler = () => {
+        draggingMarker.value = null
+        document.removeEventListener('mousemove', moveHandler)
+        document.removeEventListener('mouseup', upHandler)
+        document.removeEventListener('touchmove', moveHandler)
+        document.removeEventListener('touchend', upHandler)
+    }
+    
+    document.addEventListener('mousemove', moveHandler)
+    document.addEventListener('mouseup', upHandler)
+    document.addEventListener('touchmove', moveHandler)
+    document.addEventListener('touchend', upHandler)
+}
+
+// Task Runner State
+const isRunningList = ref(false)
+const currentRunningListId = ref<string | null>(null)
+const currentRunningIndex = ref(-1)
+const processingListQueue = ref(false)
+
 const apiConfigs = ref<ApiConfig[]>([])
 const showConfigModal = ref(false)
 const isEditing = ref(false)
@@ -793,6 +1579,9 @@ const chatSessions = ref<ChatSession[]>([])
 const currentSessionId = ref<string | null>(null)
 const showChatHistory = ref(false)
 const expandedThinks = ref<Set<string>>(new Set())  // Track which think sections are expanded
+const editingSessionId = ref<string | null>(null)
+const renameTitle = ref('')
+const renameInput = ref<HTMLInputElement[] | null>(null)
 
 // Aggregate logs into conversation turns
 interface ConversationTurn {
@@ -1046,6 +1835,91 @@ const clearHistory = () => {
     })
 }
 
+// --- Message Actions ---
+
+const copyMessage = async (content: string) => {
+    try {
+        await navigator.clipboard.writeText(content)
+        // Ideally show a toast here, for now a console log
+        console.log('Copied to clipboard')
+    } catch(err) {
+        console.error('Failed to copy', err)
+    }
+}
+
+const deleteMessage = (msgId: string) => {
+    showCustomConfirm('确定要删除这条消息吗？', () => {
+        const idx = chatMessages.value.findIndex(m => m.id === msgId)
+        if (idx !== -1) {
+            chatMessages.value.splice(idx, 1)
+            saveChatToSession()
+            // Refresh logs view
+            updateLogsFromChat() 
+        }
+    })
+}
+
+// --- Session Actions ---
+
+const deleteChatSession = (sessionId: string) => {
+    showCustomConfirm('确定要删除个对话吗？', () => {
+        const idx = chatSessions.value.findIndex(s => s.id === sessionId)
+        if (idx !== -1) {
+            chatSessions.value.splice(idx, 1)
+            Bridge.saveChatHistory(chatSessions.value)
+            
+            // If deleting current session, clear view
+            if (sessionId === currentSessionId.value) {
+                startNewChat()
+            }
+        }
+    })
+}
+
+// Rename Logic
+const startRenameSession = (session: ChatSession) => {
+    editingSessionId.value = session.id
+    renameTitle.value = session.title
+    nextTick(() => {
+        if (renameInput.value && renameInput.value[0]) {
+            renameInput.value[0].focus()
+        }
+    })
+}
+
+const saveRenameSession = (session: ChatSession) => {
+    if (!renameTitle.value.trim()) return
+    
+    session.title = renameTitle.value.trim()
+    editingSessionId.value = null
+    
+    // Update list and persist
+    const idx = chatSessions.value.findIndex(s => s.id === session.id)
+    if (idx !== -1) {
+        chatSessions.value[idx] = session
+        Bridge.saveChatHistory(chatSessions.value)
+    }
+}
+
+const cancelRenameSession = () => {
+    editingSessionId.value = null
+    renameTitle.value = ''
+}
+
+// Helper to update logs wrapper
+const updateLogsFromChat = () => {
+    logs.value = chatMessages.value.map(msg => ({
+        timestamp: msg.timestamp,
+        type: msg.role === 'user' ? 'INFO' : (msg.status === 'error' ? 'ERROR' : 'AI'),
+        message: msg.role === 'user' 
+            ? `开始执行任务: ${msg.content}` 
+            : (msg.thinkContent ? `[思考] ${msg.thinkContent}\n${msg.content}` : msg.content),
+        // Add ID for mapping back if needed, though LogEntry doesn't have it currently
+        // We can just rely on the message content for display
+        id: msg.id 
+    })) as any // Cast to satisfy LogEntry type
+}
+
 // Custom Confirm Modal Functions
 const showCustomConfirm = (message: string, onConfirm: () => void) => {
     confirmMessage.value = message
@@ -1112,7 +1986,16 @@ const saveChatToSession = () => {
     
     // Create or update session
     const sessionId = currentSessionId.value || crypto.randomUUID()
-    const title = chatMessages.value[0]?.content?.substring(0, 30) || '新对话'
+    
+    // Determine title: Use existing title if session exists (preserve rename), else use first message
+    let title = '新对话'
+    const existingIdx = chatSessions.value.findIndex(s => s.id === sessionId)
+    
+    if (existingIdx >= 0) {
+        title = chatSessions.value[existingIdx].title // Preserve existing title
+    } else {
+        title = chatMessages.value[0]?.content?.substring(0, 30) || '新对话'
+    }
     
     const session: ChatSession = {
         id: sessionId,
@@ -1122,7 +2005,6 @@ const saveChatToSession = () => {
     }
     
     // Update or add session
-    const existingIdx = chatSessions.value.findIndex(s => s.id === sessionId)
     if (existingIdx >= 0) {
         chatSessions.value[existingIdx] = session
     } else {
@@ -1141,22 +2023,10 @@ const loadChatSession = (session: ChatSession) => {
     showChatHistory.value = false
     
     // Convert chatMessages to logs format for UI display
-    logs.value = session.messages.map(msg => ({
-        timestamp: msg.timestamp,
-        type: msg.role === 'user' ? 'INFO' : (msg.status === 'error' ? 'ERROR' : 'AI'),
-        message: msg.role === 'user' 
-            ? `开始执行任务: ${msg.content}` 
-            : (msg.thinkContent ? `[思考] ${msg.thinkContent}\n${msg.content}` : msg.content)
-    }))
+    updateLogsFromChat()
 }
 
-const deleteChatSession = (sessionId: string) => {
-    chatSessions.value = chatSessions.value.filter(s => s.id !== sessionId)
-    if (currentSessionId.value === sessionId) {
-        startNewChat()
-    }
-    Bridge.saveChatHistory(chatSessions.value)
-}
+
 
 // --- Settings Actions ---
 
@@ -1290,6 +2160,444 @@ const onModelSelectChange = () => {
     }
 }
 
+// --- Task List Actions ---
+
+const loadTaskLists = () => {
+    try {
+        const lists = Bridge.getTaskLists()
+        customTaskLists.value = Array.isArray(lists) ? lists : []
+    } catch (e) {
+        console.error("Failed to load task lists", e)
+        customTaskLists.value = []
+    }
+}
+
+const saveTaskListsHelper = () => {
+    Bridge.saveTaskLists(customTaskLists.value)
+}
+
+const openTaskManager = () => {
+    loadTaskLists()
+    showTaskManager.value = true
+}
+
+const createNewTaskList = () => {
+    editingList.value = {
+        id: crypto.randomUUID(),
+        name: '新任务列表',
+        script: '',
+        createdAt: Date.now()
+    }
+    editingCommands.value = [] // Reset commands array
+    showTaskEditor.value = true
+}
+
+const editTaskList = (list: TaskList) => {
+    editingList.value = JSON.parse(JSON.stringify(list))
+    // Parse script into structured commands for card-based editing
+    editingCommands.value = parseScriptLines(list.script).map(scriptToCommand)
+    showTaskEditor.value = true
+}
+
+const deleteTaskList = (id: string) => {
+    showCustomConfirm('确定要删除这个任务列表吗？', () => {
+        const idx = customTaskLists.value.findIndex(l => l.id === id)
+        if (idx !== -1) {
+            customTaskLists.value.splice(idx, 1)
+            saveTaskListsHelper()
+        }
+    })
+}
+
+// Export task list to file
+const exportTaskList = (list: TaskList) => {
+    const content = `# ${list.name}\n# Created: ${new Date(list.createdAt).toLocaleString()}\n\n${list.script}`
+    const filename = `${list.name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}.txt`
+    Bridge.exportToFile(filename, content)
+}
+
+// Import task list from file
+const importFromFile = () => {
+    Bridge.importFromFile()
+}
+
+// Callback for when file is imported (called from native)
+if (typeof window !== 'undefined') {
+    ;(window as any).onFileImported = (filename: string, content: string) => {
+        // Parse filename to get name (remove extension)
+        const name = filename.replace(/\.[^.]+$/, '') || '导入的任务'
+        
+        // Create new task list
+        const newList: TaskList = {
+            id: crypto.randomUUID(),
+            name: name,
+            script: content.split('\n')
+                .filter(l => !l.startsWith('# ') || l.startsWith('#tap') || l.startsWith('#swipe'))
+                .map(l => l.trim())
+                .filter(l => l.length > 0 && l.startsWith('#'))
+                .join('\n'),
+            createdAt: Date.now()
+        }
+        
+        // If no valid commands found, use the raw content
+        if (!newList.script.trim()) {
+            newList.script = content
+        }
+        
+        customTaskLists.value.push(newList)
+        saveTaskListsHelper()
+        
+        // Show toast or message
+        alert(`成功导入: ${name}`)
+    }
+}
+
+const saveTaskList = () => {
+    if (!editingList.value.name.trim()) {
+        alert('请输入任务列表名称')
+        return
+    }
+    
+    // Sync structured commands back to script string
+    editingList.value.script = editingCommands.value
+        .map(commandToScript)
+        .filter(s => s.length > 1) // Filter out empty commands like just "#"
+        .join('\n')
+    
+    const idx = customTaskLists.value.findIndex(l => l.id === editingList.value.id)
+    if (idx !== -1) {
+        customTaskLists.value[idx] = editingList.value
+    } else {
+        customTaskLists.value.push(editingList.value)
+    }
+    
+    saveTaskListsHelper()
+    showTaskEditor.value = false
+}
+
+// Execution Logic
+// Loop execution state
+const loopCount = ref(0)
+const loopMax = ref(0)
+const loopStartTime = ref(0)
+const loopDuration = ref(0)
+const repeatCount = ref(0)
+const repeatMax = ref(0)
+const repeatStartIndex = ref(-1)
+const repeatStartTime = ref(0)
+const repeatDuration = ref(0)
+
+const runTaskList = (list: TaskList) => {
+    const lines = parseScriptLines(list.script)
+    if (lines.length === 0) return
+    
+    showTaskManager.value = false
+    isRunningList.value = true
+    currentRunningListId.value = list.id
+    currentRunningIndex.value = 0
+    processingListQueue.value = true
+    
+    // Reset loop state
+    loopCount.value = 0
+    loopMax.value = 0
+    loopStartTime.value = 0
+    loopDuration.value = 0
+    repeatCount.value = 0
+    repeatMax.value = 0
+    repeatStartIndex.value = -1
+    repeatStartTime.value = 0
+    repeatDuration.value = 0
+    
+    // Check for #loop or #loop_time at start
+    if (lines.length > 0) {
+        const firstCmd = scriptToCommand(lines[0])
+        if (firstCmd.type === 'loop') {
+            loopMax.value = parseInt(firstCmd.param1) || 1
+            loopCount.value = 1
+            addAssistantMessage(`🔄 开始循环执行 (第 1/${loopMax.value} 次)`, undefined, 'executing')
+        } else if (firstCmd.type === 'loop_time') {
+            loopDuration.value = parseInt(firstCmd.param1) || 60000
+            loopStartTime.value = Date.now()
+            loopCount.value = 1
+            addAssistantMessage(`⏱️ 开始定时循环 (${loopDuration.value}ms)`, undefined, 'executing')
+        }
+    }
+    
+    // Start first command
+    executeNextTaskInList(list, lines)
+}
+
+const executeNextTaskInList = async (list: TaskList, lines: string[]) => {
+    if (!isRunningList.value) return
+    
+    let idx = currentRunningIndex.value
+    
+    // Skip control commands (loop, loop_time at start)
+    if (idx === 0) {
+        const cmd = scriptToCommand(lines[0])
+        if (['loop', 'loop_time'].includes(cmd.type)) {
+            currentRunningIndex.value = 1
+            idx = 1
+        }
+    }
+    
+    if (idx >= lines.length) {
+        // End of script - check if we need to loop
+        if (loopMax.value > 0 && loopCount.value < loopMax.value) {
+            loopCount.value++
+            currentRunningIndex.value = 1 // Skip #loop command
+            addAssistantMessage(`🔄 循环执行 (第 ${loopCount.value}/${loopMax.value} 次)`, undefined, 'executing')
+            setTimeout(() => executeNextTaskInList(list, lines), 300)
+            return
+        }
+        
+        if (loopDuration.value > 0) {
+            const elapsed = Date.now() - loopStartTime.value
+            if (elapsed < loopDuration.value) {
+                loopCount.value++
+                currentRunningIndex.value = 1 // Skip #loop_time command
+                addAssistantMessage(`⏱️ 定时循环 (已运行 ${Math.round(elapsed/1000)}s，第 ${loopCount.value} 次)`, undefined, 'executing')
+                setTimeout(() => executeNextTaskInList(list, lines), 300)
+                return
+            }
+        }
+        
+        // All done
+        isRunningList.value = false
+        currentRunningListId.value = null
+        currentRunningIndex.value = -1
+        processingListQueue.value = false
+        const msg = loopCount.value > 1 ? `✅ 脚本执行完成 (共循环 ${loopCount.value} 次)` : '✅ 脚本执行完成'
+        addAssistantMessage(msg, undefined, 'done')
+        return
+    }
+    
+    const cmdLine = lines[idx]
+    const cmd = scriptToCommand(cmdLine)
+    
+    // Handle repeat commands
+    if (cmd.type === 'repeat') {
+        // Repeat next command N times
+        const repeatN = parseInt(cmd.param1) || 1
+        repeatMax.value = repeatN
+        repeatCount.value = 0
+        repeatStartIndex.value = idx + 1 // Next command
+        addAssistantMessage(`🔁 准备重复下条命令 ${repeatN} 次`, undefined, 'executing')
+        currentRunningIndex.value = idx + 1
+        setTimeout(() => executeNextTaskInList(list, lines), 100)
+        return
+    }
+    
+    if (cmd.type === 'repeat_start') {
+        repeatStartIndex.value = idx + 1
+        repeatCount.value = 0
+        currentRunningIndex.value = idx + 1
+        setTimeout(() => executeNextTaskInList(list, lines), 100)
+        return
+    }
+    
+    if (cmd.type === 'repeat_end') {
+        const param = cmd.param1 || '1'
+        const isTimeMode = param.toLowerCase().endsWith('ms') || parseInt(param) > 1000
+        
+        if (isTimeMode) {
+            // Time-based repeat
+            const duration = parseInt(param.replace(/ms/i, '')) || 10000
+            if (repeatStartTime.value === 0) {
+                repeatStartTime.value = Date.now()
+                repeatDuration.value = duration
+            }
+            
+            const elapsed = Date.now() - repeatStartTime.value
+            if (elapsed < repeatDuration.value) {
+                repeatCount.value++
+                addAssistantMessage(`📍 重复区块 (已运行 ${Math.round(elapsed/1000)}s，第 ${repeatCount.value} 次)`, undefined, 'executing')
+                currentRunningIndex.value = repeatStartIndex.value
+                setTimeout(() => executeNextTaskInList(list, lines), 100)
+                return
+            } else {
+                // Done, reset and continue
+                repeatStartTime.value = 0
+                repeatDuration.value = 0
+                repeatStartIndex.value = -1
+                currentRunningIndex.value = idx + 1
+                setTimeout(() => executeNextTaskInList(list, lines), 100)
+                return
+            }
+        } else {
+            // Count-based repeat
+            const maxReps = parseInt(param) || 1
+            repeatCount.value++
+            if (repeatCount.value < maxReps) {
+                addAssistantMessage(`📍 重复区块 (第 ${repeatCount.value + 1}/${maxReps} 次)`, undefined, 'executing')
+                currentRunningIndex.value = repeatStartIndex.value
+                setTimeout(() => executeNextTaskInList(list, lines), 100)
+                return
+            } else {
+                // Done, reset and continue
+                repeatCount.value = 0
+                repeatStartIndex.value = -1
+                currentRunningIndex.value = idx + 1
+                setTimeout(() => executeNextTaskInList(list, lines), 100)
+                return
+            }
+        }
+    }
+    
+    // Check if we're in a single-command repeat
+    if (repeatMax.value > 0 && repeatStartIndex.value === idx) {
+        repeatCount.value++
+        if (repeatCount.value <= repeatMax.value) {
+            addUserMessage(`[脚本 ${idx+1}/${lines.length}] (重复 ${repeatCount.value}/${repeatMax.value}) ${cmdLine}`)
+            Bridge.startTaskWithMode(cmdLine, executionMode.value)
+            // Don't increment index, wait for watcher to handle
+            return
+        } else {
+            // Done repeating
+            repeatMax.value = 0
+            repeatCount.value = 0
+            repeatStartIndex.value = -1
+            // Continue to next command
+            currentRunningIndex.value = idx + 1
+            setTimeout(() => executeNextTaskInList(list, lines), 100)
+            return
+        }
+    }
+    
+    // Execute normal command
+    addUserMessage(`[脚本 ${idx+1}/${lines.length}] ${cmdLine}`)
+    Bridge.startTaskWithMode(cmdLine, executionMode.value)
+}
+
+// Watcher to handle queue progression
+watch(isRunning, (newVal, oldVal) => {
+    // If we are running a list, and the task just finished (running -> not running)
+    if (isRunningList.value && processingListQueue.value && oldVal === true && newVal === false) {
+        // Task finished.
+        // Check if we're doing a single-command repeat
+        if (repeatMax.value > 0 && repeatCount.value < repeatMax.value) {
+            // Continue repeating same command
+            setTimeout(() => {
+                const list = customTaskLists.value.find(l => l.id === currentRunningListId.value)
+                if (list) {
+                    const lines = parseScriptLines(list.script)
+                    executeNextTaskInList(list, lines)
+                }
+            }, 300)
+            return
+        }
+        
+        // Add a small delay then run next
+        setTimeout(() => {
+            currentRunningIndex.value++
+            const list = customTaskLists.value.find(l => l.id === currentRunningListId.value)
+            if (list) {
+                const lines = parseScriptLines(list.script)
+                executeNextTaskInList(list, lines)
+            } else {
+                // List disappeared? Stop.
+                isRunningList.value = false
+                processingListQueue.value = false
+            }
+        }, 500) // 0.5s delay between commands
+    }
+})
+
+const stopTaskList = () => {
+    isRunningList.value = false
+    currentRunningListId.value = null
+    processingListQueue.value = false
+    stopTask() // stop current native task
+}
+
+// Import Logic
+const openImportModal = () => {
+    // Default to current session or first session
+    if (currentSessionId.value) {
+        importSelection.value.sessionId = currentSessionId.value
+    } else if (chatSessions.value.length > 0) {
+        importSelection.value.sessionId = chatSessions.value[0].id
+    }
+    importSelection.value.selectedIndices = new Set()
+    showImportModal.value = true
+}
+
+const getSessionMessages = computed(() => {
+    const session = chatSessions.value.find(s => s.id === importSelection.value.sessionId)
+    if (!session) return []
+    
+    // Extract script commands (#tap, #swipe, etc.) from assistant messages
+    const extractedCommands: { content: string, source: string }[] = []
+    
+    for (const msg of session.messages) {
+        if (msg.role === 'assistant') {
+            // Look for lines starting with # in the message content
+            const lines = msg.content.split('\n')
+            for (const line of lines) {
+                const trimmed = line.trim()
+                // Match valid script commands
+                if (trimmed.match(/^#(tap|swipe|type|input|back|home|enter|longpress|doubletap|wait|keyevent|launch|shell|loop|loop_time|repeat|repeat_start|repeat_end)\b/i)) {
+                    extractedCommands.push({
+                        content: trimmed,
+                        source: msg.content.substring(0, 30) + '...'
+                    })
+                }
+            }
+        }
+    }
+    
+    return extractedCommands
+})
+
+const toggleImportSelection = (index: number) => {
+    if (importSelection.value.selectedIndices.has(index)) {
+        importSelection.value.selectedIndices.delete(index)
+    } else {
+        importSelection.value.selectedIndices.add(index)
+    }
+}
+
+const importSelectedTasks = () => {
+    const commands = getSessionMessages.value
+    const selectedCmds = commands
+        .filter((_, idx) => importSelection.value.selectedIndices.has(idx))
+        .map(c => c.content)
+        
+    if (selectedCmds.length === 0) {
+        alert('请至少选择一条命令')
+        return
+    }
+    
+    // Parse selected commands into structured format
+    const newStructuredCmds = selectedCmds.map(scriptToCommand)
+    editingCommands.value.push(...newStructuredCmds)
+    
+    // Also update the script string
+    const currentScript = editingList.value.script.trim()
+    editingList.value.script = currentScript 
+        ? currentScript + '\n' + selectedCmds.join('\n')
+        : selectedCmds.join('\n')
+    showImportModal.value = false
+}
+
+// --- Script Helpers ---
+
+const parseScriptLines = (script: string): string[] => {
+    return script.split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0 && !l.startsWith('//') && !l.startsWith('--'))
+}
+
+const getScriptLineCount = (script: string): number => {
+    return parseScriptLines(script).length
+}
+
+const getScriptPreview = (script: string): string => {
+    const lines = parseScriptLines(script)
+    if (lines.length <= 3) return lines.join('\n')
+    return lines.slice(0, 3).join('\n') + '\n...'
+}
+
 // --- Helpers ---
 
 const formatTime = (ts: number) => {
@@ -1408,6 +2716,7 @@ onMounted(() => {
   loadApiConfigs() // Load settings on start
   loadCommandHistory() // Load command history
   loadSettings() // Load log level, dev mode, chat history
+  loadTaskLists() // Load custom task lists
   
   setInterval(checkPermissions, 2000)
   setInterval(checkShizukuStatus, 3000) // Periodically check Shizuku status

@@ -39,6 +39,15 @@ interface AndroidInterface {
     setExecutionMode(mode: string): void;
     // File Log
     getFileLogContent(): string;
+    // Task Lists
+    getTaskLists(): string;
+    saveTaskLists(json: string): void;
+    // Coordinate Picker
+    startCoordPicker(mode: string, x1: number, y1: number, x2: number, y2: number): void;
+    stopCoordPicker(): void;
+    // File Import/Export
+    exportToFile(filename: string, content: string): void;
+    importFromFile(): void;
 }
 
 // Extend Window interface
@@ -55,6 +64,11 @@ declare global {
         openSettings?: (data: string) => void;
         updateShizukuStatus?: (status: string) => void;
         handleBack?: () => boolean; // Returns true if handled, false to allow default behavior
+        // Coordinate picker callbacks (set by frontend)
+        onCoordPickerResult?: (result: { x1: number, y1: number, x2?: number, y2?: number }) => void;
+        onCoordPickerCancelled?: () => void;
+        // File import callback
+        onFileImported?: (filename: string, content: string) => void;
     }
 }
 
@@ -361,6 +375,94 @@ class Bridge {
             return window.Android.getFileLogContent();
         }
         return 'Mock: 日志文件功能需要在 Android 设备上运行';
+    }
+
+    // --- Task List Methods ---
+    static getTaskLists(): any[] {
+        if (window.Android) {
+            const json = window.Android.getTaskLists();
+            return JSON.parse(json);
+        }
+        return []; // Mock
+    }
+
+    static saveTaskLists(taskLists: any[]) {
+        if (window.Android) {
+            window.Android.saveTaskLists(JSON.stringify(taskLists));
+        } else {
+            console.log('Mock: saveTaskLists', taskLists);
+        }
+    }
+
+    static startCoordPicker(
+        mode: 'single' | 'swipe',
+        x1: number,
+        y1: number,
+        x2: number = 500,
+        y2: number = 800,
+        onResult: (result: { x1: number, y1: number, x2?: number, y2?: number }) => void,
+        onCancel: () => void
+    ) {
+        // Set up callbacks
+        window.onCoordPickerResult = onResult;
+        window.onCoordPickerCancelled = onCancel;
+
+        if (window.Android && 'startCoordPicker' in window.Android) {
+            window.Android.startCoordPicker(mode, x1, y1, x2, y2);
+        } else {
+            console.log('Mock: startCoordPicker', mode, x1, y1, x2, y2);
+            // Mock: simulate confirmation after 1 second
+            setTimeout(() => {
+                onResult({ x1: 300, y1: 500, x2: mode === 'swipe' ? 300 : undefined, y2: mode === 'swipe' ? 900 : undefined });
+            }, 1000);
+        }
+    }
+
+    static stopCoordPicker() {
+        if (window.Android && 'stopCoordPicker' in window.Android) {
+            window.Android.stopCoordPicker();
+        } else {
+            console.log('Mock: stopCoordPicker');
+        }
+    }
+
+    static exportToFile(filename: string, content: string) {
+        if (window.Android && 'exportToFile' in window.Android) {
+            window.Android.exportToFile(filename, content);
+        } else {
+            console.log('Mock: exportToFile', filename);
+            // Browser fallback: download file
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    }
+
+    static importFromFile() {
+        if (window.Android && 'importFromFile' in window.Android) {
+            window.Android.importFromFile();
+        } else {
+            console.log('Mock: importFromFile');
+            // Browser fallback: file input
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.txt,.script';
+            input.onchange = (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        window.onFileImported?.(file.name, reader.result as string);
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
     }
 }
 

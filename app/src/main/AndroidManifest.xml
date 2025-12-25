@@ -74,6 +74,11 @@
             android:exported="false"
             android:foregroundServiceType="specialUse" />
 
+        <!-- 坐标选取器服务 -->
+        <service
+            android:name=".service.CoordPickerService"
+            android:exported="false" />
+
         <!-- Shizuku Provider -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

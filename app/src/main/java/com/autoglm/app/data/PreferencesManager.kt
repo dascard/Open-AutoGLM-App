@@ -22,6 +22,7 @@ class PreferencesManager(context: Context) {
         private const val MAX_CHAT_SESSIONS = 50
         private const val KEY_MAX_STEPS = "max_steps"
         private const val KEY_EXECUTION_MODE = "execution_mode"
+        private const val KEY_CUSTOM_TASK_LISTS = "custom_task_lists"
     }
 
     private val prefs: SharedPreferences =
@@ -138,6 +139,11 @@ class PreferencesManager(context: Context) {
     var executionMode: String
         get() = prefs.getString(KEY_EXECUTION_MODE, "accessibility") ?: "accessibility"
         set(value) = prefs.edit { putString(KEY_EXECUTION_MODE, value) }
+
+    /** 自定义任务列表 (JSON 字符串) */
+    var customTaskLists: String
+        get() = prefs.getString(KEY_CUSTOM_TASK_LISTS, "[]") ?: "[]"
+        set(value) = prefs.edit { putString(KEY_CUSTOM_TASK_LISTS, value) }
 
     /** 清除所有配置 */
     fun clear() {
