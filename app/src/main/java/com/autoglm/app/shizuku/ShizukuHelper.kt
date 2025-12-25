@@ -4,8 +4,8 @@ import android.content.ComponentName
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
-import android.util.Log
 import com.autoglm.app.IUserService
+import com.autoglm.app.util.FileLogger
 import rikka.shizuku.Shizuku
 import rikka.shizuku.Shizuku.UserServiceArgs
 
@@ -29,36 +29,47 @@ object ShizukuHelper {
     // Binder 状态回调
     private var binderStateCallback: ((Boolean) -> Unit)? = null
 
+    // 服务绑定回调
+    private var serviceBindingCallback: ((Boolean) -> Unit)? = null
+
     // UserService 连接
     private val userServiceConnection =
             object : ServiceConnection {
                 override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-                    Log.i(TAG, "UserService connected: $name")
+                    FileLogger.i(TAG, "UserService connected: $name")
                     if (service != null && service.pingBinder()) {
                         userService = IUserService.Stub.asInterface(service)
                         isBound = true
-                        Log.i(TAG, "UserService bound successfully")
+                        FileLogger.i(TAG, "UserService bound successfully")
+                        serviceBindingCallback?.invoke(true)
+                    } else {
+                        FileLogger.e(
+                                TAG,
+                                "UserService binding failed - service is null or binder dead"
+                        )
+                        serviceBindingCallback?.invoke(false)
                     }
                 }
 
                 override fun onServiceDisconnected(name: ComponentName?) {
-                    Log.w(TAG, "UserService disconnected: $name")
+                    FileLogger.w(TAG, "UserService disconnected: $name")
                     userService = null
                     isBound = false
+                    serviceBindingCallback?.invoke(false)
                 }
             }
 
     // Binder 接收监听器
     private val binderReceivedListener =
             Shizuku.OnBinderReceivedListener {
-                Log.i(TAG, "Shizuku binder received")
+                FileLogger.i(TAG, "Shizuku binder received")
                 binderStateCallback?.invoke(true)
             }
 
     // Binder 断开监听器
     private val binderDeadListener =
             Shizuku.OnBinderDeadListener {
-                Log.w(TAG, "Shizuku binder dead")
+                FileLogger.w(TAG, "Shizuku binder dead")
                 userService = null
                 isBound = false
                 binderStateCallback?.invoke(false)
@@ -67,7 +78,10 @@ object ShizukuHelper {
     // 权限结果监听器
     private val permissionResultListener =
             Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
-                Log.i(TAG, "Permission result: requestCode=$requestCode, grantResult=$grantResult")
+                FileLogger.i(
+                        TAG,
+                        "Permission result: requestCode=$requestCode, grantResult=$grantResult"
+                )
                 val granted = grantResult == PackageManager.PERMISSION_GRANTED
                 permissionCallback?.invoke(granted)
             }
@@ -75,16 +89,18 @@ object ShizukuHelper {
     /** 初始化 Shizuku 监听器 */
     fun init(
             onBinderStateChanged: ((Boolean) -> Unit)? = null,
-            onPermissionResult: ((Boolean) -> Unit)? = null
+            onPermissionResult: ((Boolean) -> Unit)? = null,
+            onServiceBinding: ((Boolean) -> Unit)? = null
     ) {
         binderStateCallback = onBinderStateChanged
         permissionCallback = onPermissionResult
+        serviceBindingCallback = onServiceBinding
 
         Shizuku.addBinderReceivedListener(binderReceivedListener)
         Shizuku.addBinderDeadListener(binderDeadListener)
         Shizuku.addRequestPermissionResultListener(permissionResultListener)
 
-        Log.i(TAG, "Shizuku listeners initialized")
+        FileLogger.i(TAG, "Shizuku listeners initialized")
     }
 
     /** 清理 Shizuku 监听器 */
@@ -98,7 +114,7 @@ object ShizukuHelper {
         binderStateCallback = null
         permissionCallback = null
 
-        Log.i(TAG, "Shizuku listeners cleaned up")
+        FileLogger.i(TAG, "Shizuku listeners cleaned up")
     }
 
     /** 检查 Shizuku 是否可用（已安装且 Binder 存活） */
@@ -106,7 +122,7 @@ object ShizukuHelper {
         return try {
             Shizuku.pingBinder()
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking Shizuku availability", e)
+            FileLogger.e(TAG, "Error checking Shizuku availability", e)
             false
         }
     }
@@ -123,7 +139,7 @@ object ShizukuHelper {
                 Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking permission", e)
+            FileLogger.e(TAG, "Error checking permission", e)
             false
         }
     }
@@ -132,33 +148,33 @@ object ShizukuHelper {
     fun requestPermission(requestCode: Int = 1) {
         try {
             if (!isAvailable()) {
-                Log.w(TAG, "Shizuku not available, cannot request permission")
+                FileLogger.w(TAG, "Shizuku not available, cannot request permission")
                 permissionCallback?.invoke(false)
                 return
             }
 
             if (Shizuku.isPreV11()) {
-                Log.w(TAG, "Shizuku pre-v11 is not supported")
+                FileLogger.w(TAG, "Shizuku pre-v11 is not supported")
                 permissionCallback?.invoke(false)
                 return
             }
 
             if (hasPermission()) {
-                Log.i(TAG, "Already has permission")
+                FileLogger.i(TAG, "Already has permission")
                 permissionCallback?.invoke(true)
                 return
             }
 
             if (Shizuku.shouldShowRequestPermissionRationale()) {
-                Log.w(TAG, "User denied permission and chose 'don't ask again'")
+                FileLogger.w(TAG, "User denied permission and chose 'don't ask again'")
                 permissionCallback?.invoke(false)
                 return
             }
 
-            Log.i(TAG, "Requesting Shizuku permission...")
+            FileLogger.i(TAG, "Requesting Shizuku permission...")
             Shizuku.requestPermission(requestCode)
         } catch (e: Exception) {
-            Log.e(TAG, "Error requesting permission", e)
+            FileLogger.e(TAG, "Error requesting permission", e)
             permissionCallback?.invoke(false)
         }
     }
@@ -166,16 +182,22 @@ object ShizukuHelper {
     /** 绑定 UserService */
     fun bindUserService() {
         if (!hasPermission()) {
-            Log.w(TAG, "No permission, cannot bind UserService")
+            FileLogger.w(TAG, "No permission, cannot bind UserService")
             return
         }
 
         if (isBound && userService != null) {
-            Log.i(TAG, "UserService already bound")
+            FileLogger.i(TAG, "UserService already bound")
             return
         }
 
         try {
+            val isBinderAlive = Shizuku.pingBinder()
+            FileLogger.i(
+                    TAG,
+                    "Pre-bind check: pingBinder=$isBinderAlive, version=${Shizuku.getVersion()}"
+            )
+
             val userServiceArgs =
                     UserServiceArgs(
                                     ComponentName(
@@ -188,10 +210,21 @@ object ShizukuHelper {
                             .debuggable(IS_DEBUG)
                             .version(VERSION_CODE)
 
+            // Setup timeout handler
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            val timeoutRunnable = Runnable {
+                if (!isBound) {
+                    FileLogger.e(TAG, "Binding UserService timed out after 5000ms")
+                    serviceBindingCallback?.invoke(false)
+                }
+            }
+            handler.postDelayed(timeoutRunnable, 5000)
+
             Shizuku.bindUserService(userServiceArgs, userServiceConnection)
-            Log.i(TAG, "Binding UserService...")
+            FileLogger.i(TAG, "Binding UserService requested...")
         } catch (e: Exception) {
-            Log.e(TAG, "Error binding UserService", e)
+            FileLogger.e(TAG, "Error binding UserService", e)
+            serviceBindingCallback?.invoke(false)
         }
     }
 
@@ -211,9 +244,9 @@ object ShizukuHelper {
             )
             userService = null
             isBound = false
-            Log.i(TAG, "UserService unbound")
+            FileLogger.i(TAG, "UserService unbound")
         } catch (e: Exception) {
-            Log.e(TAG, "Error unbinding UserService", e)
+            FileLogger.e(TAG, "Error unbinding UserService", e)
         }
     }
 
@@ -225,17 +258,17 @@ object ShizukuHelper {
     fun executeCommand(command: String): String? {
         val service = userService
         if (service == null) {
-            Log.w(TAG, "UserService not available")
+            FileLogger.w(TAG, "UserService not available")
             return null
         }
 
         return try {
-            Log.d(TAG, "Executing command: $command")
+            FileLogger.d(TAG, "Executing command: $command")
             val result = service.executeCommand(command)
-            Log.d(TAG, "Command result: ${result?.take(200)}...")
+            FileLogger.d(TAG, "Command result: ${result?.take(200)}...")
             result
         } catch (e: Exception) {
-            Log.e(TAG, "Error executing command", e)
+            FileLogger.e(TAG, "Error executing command", e)
             "Error: ${e.message}"
         }
     }
@@ -249,7 +282,7 @@ object ShizukuHelper {
                 -1
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting UID", e)
+            FileLogger.e(TAG, "Error getting UID", e)
             -1
         }
     }

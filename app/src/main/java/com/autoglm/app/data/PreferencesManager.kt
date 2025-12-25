@@ -21,6 +21,7 @@ class PreferencesManager(context: Context) {
         private const val MAX_HISTORY_SIZE = 20
         private const val MAX_CHAT_SESSIONS = 50
         private const val KEY_MAX_STEPS = "max_steps"
+        private const val KEY_EXECUTION_MODE = "execution_mode"
     }
 
     private val prefs: SharedPreferences =
@@ -132,6 +133,11 @@ class PreferencesManager(context: Context) {
     var maxSteps: Int
         get() = prefs.getInt(KEY_MAX_STEPS, 50)
         set(value) = prefs.edit { putInt(KEY_MAX_STEPS, value) }
+
+    /** 执行模式 (accessibility 或 shizuku) */
+    var executionMode: String
+        get() = prefs.getString(KEY_EXECUTION_MODE, "accessibility") ?: "accessibility"
+        set(value) = prefs.edit { putString(KEY_EXECUTION_MODE, value) }
 
     /** 清除所有配置 */
     fun clear() {

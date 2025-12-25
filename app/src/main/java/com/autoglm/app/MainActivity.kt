@@ -420,6 +420,40 @@ class MainActivity : AppCompatActivity(), WebAppListener {
         prefsManager.maxSteps = steps
     }
 
+    override fun onGetSomPreview(): String {
+        return try {
+            val externalCacheDir = externalCacheDir ?: return ""
+            val screenshotPath = "${externalCacheDir.absolutePath}/screenshot_marked_latest.png"
+            val file = java.io.File(screenshotPath)
+
+            if (!file.exists()) {
+                FileLogger.w(TAG, "SoM preview file not found: $screenshotPath")
+                return ""
+            }
+
+            // Read the file and convert to Base64
+            val bytes = file.readBytes()
+            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+        } catch (e: Exception) {
+            FileLogger.e(TAG, "Failed to read SoM preview: ${e.message}")
+            ""
+        }
+    }
+
+    override fun onGetExecutionMode(): String {
+        return prefsManager.executionMode
+    }
+
+    override fun onSetExecutionMode(mode: String) {
+        prefsManager.executionMode = mode
+    }
+
+    override fun onGetFileLogContent(): String {
+        val logPath = FileLogger.getLogFilePath() ?: "未知路径"
+        val logContent = FileLogger.getLatestLogContent(300)
+        return "📁 日志文件路径:\n$logPath\n\n📋 最近日志内容 (最后300行):\n\n$logContent"
+    }
+
     private fun initShizuku() {
         ShizukuHelper.init(
                 onBinderStateChanged = { isAlive ->
@@ -436,6 +470,19 @@ class MainActivity : AppCompatActivity(), WebAppListener {
                             ShizukuHelper.bindUserService()
                         } else {
                             pushToastToWeb("Shizuku 权限被拒绝")
+                            addLogAndSend(LogType.ERROR, "Shizuku 权限被拒绝")
+                        }
+                    }
+                },
+                onServiceBinding = { success ->
+                    FileLogger.i(TAG, "Shizuku service binding result: $success")
+                    runOnUiThread {
+                        if (success) {
+                            pushToastToWeb("Shizuku 服务已绑定")
+                            addLogAndSend(LogType.INFO, "Shizuku 服务绑定成功，可以开始执行任务")
+                        } else {
+                            pushToastToWeb("Shizuku 服务绑定失败")
+                            addLogAndSend(LogType.ERROR, "Shizuku 服务绑定失败，请检查 Shizuku 是否正确启动")
                         }
                     }
                 }
@@ -452,11 +499,13 @@ class MainActivity : AppCompatActivity(), WebAppListener {
     private fun executeTaskWithShizuku(task: String) {
         // 检查 Shizuku 是否就绪
         if (!ShizukuHelper.isAvailable()) {
+            addLogAndSend(LogType.ERROR, "Shizuku 未启动或不可用，请先启动 Shizuku 应用")
             pushToastToWeb("请先启动 Shizuku 应用")
             return
         }
 
         if (!ShizukuHelper.hasPermission()) {
+            addLogAndSend(LogType.ERROR, "Shizuku 权限未授予，请授权后重试")
             pushToastToWeb("请先授权 Shizuku 权限")
             ShizukuHelper.requestPermission()
             return
@@ -464,6 +513,7 @@ class MainActivity : AppCompatActivity(), WebAppListener {
 
         // 自动绑定 UserService
         if (!ShizukuHelper.isServiceBound()) {
+            addLogAndSend(LogType.INFO, "正在绑定 Shizuku 服务...")
             ShizukuHelper.bindUserService()
             // 等待绑定完成
             pushToastToWeb("正在绑定 Shizuku 服务...")
@@ -506,7 +556,7 @@ class MainActivity : AppCompatActivity(), WebAppListener {
 
         // 收集日志
         lifecycleScope.launch {
-            shizukuTaskExecutor?.logs?.collectLatest { logs ->
+            shizukuTaskExecutor?.logs?.collect { logs ->
                 currentLogs = logs.toMutableList()
                 val json = gson.toJson(logs)
                 sendToWeb("updateLogs", json)
@@ -687,7 +737,7 @@ class MainActivity : AppCompatActivity(), WebAppListener {
 
         // Logs
         lifecycleScope.launch {
-            taskExecutor?.logs?.collectLatest { logs ->
+            taskExecutor?.logs?.collect { logs ->
                 currentLogs = logs.toMutableList()
                 val json = gson.toJson(logs)
                 sendToWeb("updateLogs", json)
@@ -1178,15 +1228,30 @@ class MainActivity : AppCompatActivity(), WebAppListener {
     private fun sendToWeb(function: String, data: String) {
         runOnUiThread {
             // 确保函数存在后再调用，并传递字符串参数
+            // 需要正确转义 JSON 数据中的特殊字符
+            val escapedData =
+                    data.replace("\\", "\\\\") // 先转义反斜杠
+                            .replace("'", "\\'") // 再转义单引号
+                            .replace("\n", "\\n") // 转义换行符
+                            .replace("\r", "\\r") // 转义回车符
             val js =
                     """
                 if (typeof window.$function === 'function') {
-                    window.$function('$data');
+                    window.$function('$escapedData');
                 } else {
                     console.log('Bridge function not ready: $function');
                 }
             """.trimIndent()
             webView.evaluateJavascript(js, null)
         }
+    }
+
+    /** 添加日志并发送到 WebView */
+    private fun addLogAndSend(type: LogType, message: String) {
+        val logEntry =
+                LogEntry(timestamp = System.currentTimeMillis(), type = type, message = message)
+        currentLogs.add(logEntry)
+        val json = gson.toJson(currentLogs)
+        sendToWeb("updateLogs", json)
     }
 }

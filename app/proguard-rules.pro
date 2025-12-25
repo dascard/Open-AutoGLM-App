@@ -6,3 +6,8 @@
 -keepattributes Signature
 -keepattributes *Annotation*
 -keep class com.autoglm.app.core.** { *; }
+
+# Keep Shizuku classes
+-keep class com.autoglm.app.shizuku.** { *; }
+-keep class com.autoglm.app.IUserService { *; }
+-keep class com.autoglm.app.IUserService$Stub { *; }

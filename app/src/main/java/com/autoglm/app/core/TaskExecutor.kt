@@ -97,7 +97,7 @@ class TaskExecutor(
                 _status.value = ExecutionStatus.Running
 
                 addLog(LogType.INFO, "===== 任务开始 =====")
-                addLog(LogType.INFO, "任务: $task")
+                addLog(LogType.INFO, "开始执行任务: $task")
                 addLog(
                         LogType.INFO,
                         "时间: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}"

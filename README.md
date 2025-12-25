@@ -87,7 +87,8 @@ SoM 方式：AI → "点击标记 5" → 系统自动查找标记 5 对应的元
 
 ### 环境要求
 - Android 7.0 (API 24) 或更高版本
-- 至少一个 AI API Key（OpenAI / Claude / Gemini / 其他兼容 API）建议白嫖智谱的API,至少母亲AutoGLM-Phone能白嫖
+- 至少一个 AI API Key（OpenAI / Claude / Gemini / 其他兼容 API）~~建议白嫖智谱的API~~,至少AutoGLM-Phone能白嫖
+- 目前来看SoM功能还是稍微找个能听懂人话的AI使用,官方的9B特调版实在是听不懂提示词
 
 ### 安装步骤
 

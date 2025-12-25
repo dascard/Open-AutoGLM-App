@@ -36,6 +36,16 @@ interface WebAppListener {
     // 最大步数设置
     fun onGetMaxSteps(): Int
     fun onSetMaxSteps(steps: Int)
+
+    // SoM 预览
+    fun onGetSomPreview(): String
+
+    // 执行模式
+    fun onGetExecutionMode(): String
+    fun onSetExecutionMode(mode: String)
+
+    // 文件日志
+    fun onGetFileLogContent(): String
 }
 
 class WebAppInterface(private val listener: WebAppListener) {
@@ -177,5 +187,25 @@ class WebAppInterface(private val listener: WebAppListener) {
     @JavascriptInterface
     fun setMaxSteps(steps: Int) {
         listener.onSetMaxSteps(steps)
+    }
+
+    @JavascriptInterface
+    fun getSomPreview(): String {
+        return listener.onGetSomPreview()
+    }
+
+    @JavascriptInterface
+    fun getExecutionMode(): String {
+        return listener.onGetExecutionMode()
+    }
+
+    @JavascriptInterface
+    fun setExecutionMode(mode: String) {
+        listener.onSetExecutionMode(mode)
+    }
+
+    @JavascriptInterface
+    fun getFileLogContent(): String {
+        return listener.onGetFileLogContent()
     }
 }

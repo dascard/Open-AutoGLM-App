@@ -139,7 +139,7 @@ class ShizukuTaskExecutor(
                 _status.value = ExecutionStatus.Running
 
                 addLog(LogType.INFO, "===== Shizuku 任务开始 =====")
-                addLog(LogType.INFO, "任务: $task")
+                addLog(LogType.INFO, "开始执行任务: $task")
                 addLog(LogType.INFO, "模式: ADB (Shizuku)")
                 addLog(
                         LogType.INFO,

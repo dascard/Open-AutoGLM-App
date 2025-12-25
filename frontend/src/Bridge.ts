@@ -32,6 +32,13 @@ interface AndroidInterface {
     saveChatHistory(json: string): void;
     getMaxSteps(): number;
     setMaxSteps(steps: number): void;
+    // SoM Preview
+    getSomPreview(): string;
+    // Execution Mode
+    getExecutionMode(): string;
+    setExecutionMode(mode: string): void;
+    // File Log
+    getFileLogContent(): string;
 }
 
 // Extend Window interface
@@ -324,6 +331,36 @@ class Bridge {
         } else {
             console.log('Mock: setMaxSteps', steps);
         }
+    }
+
+    static getSomPreview(): string {
+        if (window.Android) {
+            return window.Android.getSomPreview();
+        }
+        console.log('Mock: getSomPreview');
+        return ''; // Mock: empty string means no preview available
+    }
+
+    static getExecutionMode(): string {
+        if (window.Android) {
+            return window.Android.getExecutionMode();
+        }
+        return 'accessibility'; // Mock default
+    }
+
+    static setExecutionMode(mode: string) {
+        if (window.Android) {
+            window.Android.setExecutionMode(mode);
+        } else {
+            console.log('Mock: setExecutionMode', mode);
+        }
+    }
+
+    static getFileLogContent(): string {
+        if (window.Android) {
+            return window.Android.getFileLogContent();
+        }
+        return 'Mock: 日志文件功能需要在 Android 设备上运行';
     }
 }
 

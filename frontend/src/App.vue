@@ -272,13 +272,31 @@
                 </div>
                 
                 <!-- 日志查看器入口 (仅开发者模式) -->
-                <div v-if="devMode" class="pt-2 border-t border-gray-100 dark:border-white/5">
+                <div v-if="devMode" class="pt-2 border-t border-gray-100 dark:border-white/5 space-y-2">
                     <button 
                         @click="showLogViewer = true"
                         class="w-full text-left px-3 py-2 rounded-lg text-sm bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-gray-300 flex items-center gap-2"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
                         查看完整日志
+                    </button>
+                    <button 
+                        @click="loadSomPreview"
+                        :disabled="somPreviewLoading"
+                        class="w-full text-left px-3 py-2 rounded-lg text-sm bg-pink-50 hover:bg-pink-100 text-pink-700 dark:bg-pink-500/10 dark:hover:bg-pink-500/20 dark:text-pink-300 flex items-center gap-2"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                        <span v-if="somPreviewLoading">正在获取 SoM 预览...</span>
+                        <span v-else>查看 Set-of-Marks 预览</span>
+                    </button>
+                    <button 
+                        @click="loadFileLog"
+                        :disabled="fileLogLoading"
+                        class="w-full text-left px-3 py-2 rounded-lg text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 dark:text-blue-300 flex items-center gap-2"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        <span v-if="fileLogLoading">正在读取日志文件...</span>
+                        <span v-else>查看日志文件</span>
                     </button>
                 </div>
             </div>
@@ -539,6 +557,51 @@
       </div>
     </Transition>
 
+    <!-- SoM Preview Modal -->
+    <Transition name="modal">
+      <div v-if="showSomPreview" class="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm" @click.self="showSomPreview = false">
+        <div class="relative w-full max-w-lg bg-white dark:bg-[#252525] rounded-2xl shadow-xl overflow-hidden">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
+            <h3 class="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
+              <span class="w-6 h-6 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center font-bold">1</span>
+              Set-of-Marks 预览
+            </h3>
+            <button @click="showSomPreview = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center text-gray-500 dark:text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="p-2 max-h-[70vh] overflow-auto">
+            <img v-if="somPreviewImage" :src="somPreviewImage" alt="SoM Preview" class="w-full h-auto rounded-lg" />
+            <div v-else class="text-center text-gray-500 py-8">暂无预览图</div>
+          </div>
+          <div class="px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] text-xs text-gray-500 dark:text-gray-400">
+            粉色圆圈标记了当前屏幕上的可点击元素，AI 可以通过数字 ID 直接引用这些元素进行操作。
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- File Log Viewer Modal -->
+    <Transition name="modal">
+      <div v-if="showFileLog" class="fixed inset-0 bg-black/50 dark:bg-black/70 z-[100] flex items-center justify-center p-4 backdrop-blur-sm" @click.self="showFileLog = false">
+        <div class="w-full max-w-2xl max-h-[85vh] bg-white dark:bg-[#252525] rounded-2xl shadow-xl overflow-hidden flex flex-col">
+          <div class="p-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">📄 日志文件查看器</h3>
+            <button @click="showFileLog = false" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="flex-1 overflow-auto p-4 bg-gray-50 dark:bg-[#1a1a1a]">
+            <pre class="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words leading-relaxed">{{ fileLogContent }}</pre>
+          </div>
+          <div class="px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-white/10 flex justify-between items-center">
+            <span>最后 300 行日志</span>
+            <button @click="loadFileLog" class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs">刷新</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Custom Confirm Modal -->
     <Transition name="modal">
       <div v-if="showConfirmModal" class="fixed inset-0 bg-black/50 dark:bg-black/70 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
@@ -661,11 +724,11 @@ const logContainer = ref<HTMLElement | null>(null)
 const commandHistory = ref<string[]>([])
 
 // Execution mode and Shizuku state
-const savedMode = localStorage.getItem('executionMode')
+const savedMode = Bridge.getExecutionMode()
 const executionMode = ref<'accessibility' | 'shizuku'>(savedMode === 'shizuku' ? 'shizuku' : 'accessibility')
 const setMode = (mode: 'accessibility' | 'shizuku') => {
   executionMode.value = mode
-  localStorage.setItem('executionMode', mode)
+  Bridge.setExecutionMode(mode)
 }
 const shizukuStatus = ref({
     available: false,
@@ -693,6 +756,16 @@ const truncateCommand = (cmd: string, maxLength = 40): string => {
 // Settings State
 const showSettings = ref(false)
 const showHistoryDropdown = ref(false)
+
+// SoM Preview State
+const showSomPreview = ref(false)
+const somPreviewLoading = ref(false)
+const somPreviewImage = ref('')
+
+// File Log State
+const showFileLog = ref(false)
+const fileLogLoading = ref(false)
+const fileLogContent = ref('')
 
 // Custom Confirm Modal State
 const showConfirmModal = ref(false)
@@ -868,6 +941,9 @@ const startTask = () => {
     }
   }
   
+  // Save user's task to chat history
+  addUserMessage(taskSchema.value)
+  
   Bridge.startTaskWithMode(taskSchema.value, executionMode.value)
 }
 
@@ -888,6 +964,41 @@ const requestOverlayPermission = () => {
 
 const checkPermissions = () => {
     overlayPermissionValid.value = Bridge.checkOverlayPermission()
+}
+
+// --- SoM Preview ---
+
+const loadSomPreview = () => {
+    somPreviewLoading.value = true
+    somPreviewImage.value = ''
+    try {
+        const base64Data = Bridge.getSomPreview()
+        if (base64Data && base64Data.length > 0) {
+            somPreviewImage.value = `data:image/png;base64,${base64Data}`
+            showSomPreview.value = true
+        } else {
+            console.log('No SoM preview available')
+        }
+    } catch (e) {
+        console.error('Failed to get SoM preview', e)
+    } finally {
+        somPreviewLoading.value = false
+    }
+}
+
+// --- File Log Actions ---
+
+const loadFileLog = () => {
+    fileLogLoading.value = true
+    try {
+        fileLogContent.value = Bridge.getFileLogContent()
+        showFileLog.value = true
+    } catch (e) {
+        console.error('Failed to load file log', e)
+        fileLogContent.value = '读取日志文件失败'
+    } finally {
+        fileLogLoading.value = false
+    }
 }
 
 // --- Shizuku Actions ---
@@ -992,6 +1103,8 @@ const toggleThinkExpand = (msgId: string) => {
 const startNewChat = () => {
     chatMessages.value = []
     currentSessionId.value = null
+    // Clear logs to reset UI display
+    logs.value = []
 }
 
 const saveChatToSession = () => {
@@ -1026,6 +1139,15 @@ const loadChatSession = (session: ChatSession) => {
     chatMessages.value = [...session.messages]
     currentSessionId.value = session.id
     showChatHistory.value = false
+    
+    // Convert chatMessages to logs format for UI display
+    logs.value = session.messages.map(msg => ({
+        timestamp: msg.timestamp,
+        type: msg.role === 'user' ? 'INFO' : (msg.status === 'error' ? 'ERROR' : 'AI'),
+        message: msg.role === 'user' 
+            ? `开始执行任务: ${msg.content}` 
+            : (msg.thinkContent ? `[思考] ${msg.thinkContent}\n${msg.content}` : msg.content)
+    }))
 }
 
 const deleteChatSession = (sessionId: string) => {

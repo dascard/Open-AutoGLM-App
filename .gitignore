@@ -33,7 +33,9 @@ local.properties
 *.keystore
 
 # Log files
+logs/
 *.log
+*.txt
 
 # Frontend
 frontend/node_modules/

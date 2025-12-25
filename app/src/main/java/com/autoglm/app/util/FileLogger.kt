@@ -83,6 +83,24 @@ object FileLogger {
     /** 获取日志文件路径 */
     fun getLogFilePath(): String? = logFile?.absolutePath
 
+    /** 获取最新日志内容（最后 maxLines 行） */
+    fun getLatestLogContent(maxLines: Int = 200): String {
+        return try {
+            logFile?.let { file ->
+                if (file.exists()) {
+                    val lines = file.readLines()
+                    val startIndex = maxOf(0, lines.size - maxLines)
+                    lines.subList(startIndex, lines.size).joinToString("\n")
+                } else {
+                    "日志文件不存在"
+                }
+            }
+                    ?: "日志系统未初始化"
+        } catch (e: Exception) {
+            "读取日志失败: ${e.message}"
+        }
+    }
+
     /** Info 日志 */
     fun i(tag: String, message: String) {
         Log.i(tag, message)
