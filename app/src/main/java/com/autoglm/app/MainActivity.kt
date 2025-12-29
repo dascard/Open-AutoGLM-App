@@ -515,6 +515,14 @@ class MainActivity : AppCompatActivity(), WebAppListener {
         prefsManager.executionMode = mode
     }
 
+    override fun onGetVisualStrategy(): String {
+        return prefsManager.visualStrategy
+    }
+
+    override fun onSetVisualStrategy(strategy: String) {
+        prefsManager.visualStrategy = strategy
+    }
+
     override fun onGetFileLogContent(): String {
         val logPath = FileLogger.getLogFilePath() ?: "未知路径"
         val logContent = FileLogger.getLatestLogContent(300)
@@ -715,6 +723,7 @@ class MainActivity : AppCompatActivity(), WebAppListener {
                 ShizukuTaskExecutor(
                         context = this,
                         aiClient = aiClient!!,
+                        prefsManager = prefsManager,
                         maxSteps = prefsManager.maxSteps
                 )
 
@@ -885,13 +894,15 @@ class MainActivity : AppCompatActivity(), WebAppListener {
                         retryConfig = RetryConfig(maxRetries = prefsManager.maxRetries)
                 )
 
+        // 记录命令历史（在任何处理之前）
+        prefsManager.addCommandToHistory(task)
+
         // 调试模式：以 # 开头的命令直接执行，不经过 AI
         if (task.startsWith("#")) {
             executeDebugCommand(task.substring(1).trim(), service)
             return
         }
 
-        prefsManager.addCommandToHistory(task)
         taskExecutor =
                 TaskExecutor(
                         context = this,

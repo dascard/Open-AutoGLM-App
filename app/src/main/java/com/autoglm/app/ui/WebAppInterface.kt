@@ -44,6 +44,10 @@ interface WebAppListener {
     fun onGetExecutionMode(): String
     fun onSetExecutionMode(mode: String)
 
+    // 视觉策略
+    fun onGetVisualStrategy(): String
+    fun onSetVisualStrategy(strategy: String)
+
     // 文件日志
     fun onGetFileLogContent(): String
 
@@ -214,6 +218,16 @@ class WebAppInterface(private val listener: WebAppListener) {
     @JavascriptInterface
     fun setExecutionMode(mode: String) {
         listener.onSetExecutionMode(mode)
+    }
+
+    @JavascriptInterface
+    fun getVisualStrategy(): String {
+        return listener.onGetVisualStrategy()
+    }
+
+    @JavascriptInterface
+    fun setVisualStrategy(strategy: String) {
+        listener.onSetVisualStrategy(strategy)
     }
 
     @JavascriptInterface

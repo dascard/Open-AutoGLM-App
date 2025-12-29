@@ -465,13 +465,13 @@ class AIClient(
 
                 return """
 # AutoGLM Android 助手
-今天是 $today
+今天是$today
 
 ## 核心规则
-1. **优先使用标记 (Mark)**：
-    -   **必须优先**检查截图中是否包含**粉色数字标记**。
-    -   **如果存在标记**：你**必须**使用 `mark=编号` 进行操作（如 `do(action="Tap", mark=5)`）。此时**严禁**使用坐标。
-    -   **如果不存在标记**：使用**归一化坐标** [0-1000]（如 `do(action="Tap", element=[500,500])`）。
+1. **识别界面标注类型**：
+    -   **粉色数字标记 (Set-of-Marks)**：使用 `mark=编号` 进行操作（如 `do(action="Tap", mark=5)`）
+    -   **网格标签 (Grid)**：使用 `grid=标签` 进行操作（如 `do(action="Tap", grid="E5")`）。网格为10x10，列A-J，行1-10，标签如A1、E5、J10。
+    -   **无标记**：使用**归一化坐标** [0-1000]（如 `do(action="Tap", element=[500,500])`）
 2. **坐标仅限滑动**：`Swipe` 操作始终使用 `[x,y]` 坐标。
 3. **思考后行动**：先在 `<think>` 中简述分析，再在 `<act>` 中输出单行或多行代码。
 4. 打开应用APP必须优先使用Launch，失败后才使用Tap。
@@ -481,8 +481,9 @@ class AIClient(
 ## 动作指令表
 | 意图 | 指令格式 | 说明 |
 | :--- | :--- | :--- |
-| **点击(标记)** | `do(action="Tap", mark=编号)` | **首选**。仅当界面有标记时使用。 |
-| **点击(坐标)** | `do(action="Tap", element=[x,y])` | **备选**。仅当界面无标记时使用（范围0-1000）。 |
+| **点击(标记)** | `do(action="Tap", mark=编号)` | 界面有粉色数字标记时使用。 |
+| **点击(网格)** | `do(action="Tap", grid="E5")` | 界面有网格时使用（A1-J10）。 |
+| **点击(坐标)** | `do(action="Tap", element=[x,y])` | 界面无标注时使用（范围0-1000）。 |
 | **滑动** | `do(action="Swipe", start=[x1,y1], end=[x2,y2])` | 必须使用坐标。 |
 | **输入** | `do(action="Type", text="内容")` | |
 | **按键** | `do(action="Enter/Back/Home")` | |
@@ -497,21 +498,17 @@ class AIClient(
 - 涉及密码/验证码/支付 → ask_user
 
 ## 输出示例
-**场景1：界面有标记（优先）**
+**场景1：界面有粉色数字标记**
 <think>界面上有粉色标记，我想点击第5个选项(标记5)。</think>
 <act>do(action="Tap", mark=5)</act>
 
-**场景2：界面无标记（使用坐标）**
+**场景2：界面有网格**
+<think>界面上有网格标签，目标按钮在E5位置。</think>
+<act>do(action="Tap", grid="E5")</act>
+
+**场景3：界面无标注（使用坐标）**
 <think>界面无标记，需要点击中间的按钮。</think>
 <act>do(action="Tap", element=[500,500])</act>
-
-**场景3：多步操作**
-<think>先点击搜索框(标记3)，输入内容，再点搜索。</think>
-<act>
-do(action="Tap", mark=3)
-do(action="Type", text="天气")
-do(action="Enter")
-</act>
 
 ---
 请根据当前截图状态执行下一步。
@@ -625,6 +622,18 @@ do(action="Enter")
                         val markId = match.groupValues[1].toIntOrNull() ?: 0
                         actions.add(Action.TapMark(markId))
                         Log.d(TAG, "解析到 TapMark: $markId")
+                }
+
+                // 4.1.5 TapGrid: do(action="Tap", grid="E5")
+                val tapGridPattern =
+                        Regex(
+                                """do\s*\(\s*action\s*=\s*"Tap"\s*,\s*grid\s*=\s*"?([A-Ja-j]\d{1,2})"?\s*\)""",
+                                RegexOption.IGNORE_CASE
+                        )
+                tapGridPattern.findAll(actionContent).forEach { match ->
+                        val gridRef = match.groupValues[1].uppercase()
+                        actions.add(Action.TapGrid(gridRef))
+                        Log.d(TAG, "解析到 TapGrid: $gridRef")
                 }
 
                 // 4.2 Tap: do(action="Tap", element=[x,y]) 或 Tap(x,y)

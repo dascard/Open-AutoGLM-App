@@ -23,6 +23,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_MAX_STEPS = "max_steps"
         private const val KEY_EXECUTION_MODE = "execution_mode"
         private const val KEY_CUSTOM_TASK_LISTS = "custom_task_lists"
+        private const val KEY_VISUAL_STRATEGY = "visual_strategy"
     }
 
     private val prefs: SharedPreferences =
@@ -144,6 +145,11 @@ class PreferencesManager(context: Context) {
     var customTaskLists: String
         get() = prefs.getString(KEY_CUSTOM_TASK_LISTS, "[]") ?: "[]"
         set(value) = prefs.edit { putString(KEY_CUSTOM_TASK_LISTS, value) }
+
+    /** 视觉策略 (auto/som/grid/none) */
+    var visualStrategy: String
+        get() = prefs.getString(KEY_VISUAL_STRATEGY, "auto") ?: "auto"
+        set(value) = prefs.edit { putString(KEY_VISUAL_STRATEGY, value) }
 
     /** 清除所有配置 */
     fun clear() {

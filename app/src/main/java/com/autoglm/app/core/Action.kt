@@ -62,6 +62,11 @@ sealed class Action {
     data class TapMark(val markId: Int) : Action() {
         override fun toString() = "点击标记[$markId]"
     }
+
+    /** 基于网格标签点击 (Grid) 用于游戏等无法解析UI的场景 */
+    data class TapGrid(val gridRef: String) : Action() {
+        override fun toString() = "点击网格[$gridRef]"
+    }
 }
 
 /** AI 响应数据类 支持多个连续操作和悬浮窗状态消息 */

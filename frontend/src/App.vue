@@ -79,17 +79,44 @@
                 <!-- AI 响应 (独立气泡) -->
                 <div v-if="turn.aiResponses.length > 0" class="flex flex-col gap-2 mt-2">
                   <div v-for="(resp, idx) in turn.aiResponses" :key="idx" class="flex justify-start">
-                    <div class="max-w-[85%] rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm text-sm"
+                    <!-- 思考消息 - 可折叠 -->
+                    <div v-if="resp.message.includes('思考') || resp.message.includes('分析') || resp.message.includes('💭')"
+                         class="max-w-[85%] rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm text-sm bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-800 cursor-pointer transition-all"
+                         @click="toggleThinkExpand(`${turn.id}-${idx}`)">
+                      <div class="flex items-start gap-2">
+                        <span>💭</span>
+                        <div class="flex-1">
+                          <!-- 折叠状态 -->
+                          <div v-if="!expandedThinks.has(`${turn.id}-${idx}`)">
+                            <span class="opacity-90">{{ resp.message.substring(0, 50) }}{{ resp.message.length > 50 ? '...' : '' }}</span>
+                            <span class="text-xs ml-2 opacity-60 text-purple-500">[点击展开]</span>
+                          </div>
+                          <!-- 展开状态 -->
+                          <div v-else>
+                            <div class="whitespace-pre-wrap">{{ resp.message }}</div>
+                            <span class="text-xs opacity-60 text-purple-500 mt-1 inline-block">[点击收起]</span>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- 时间戳 -->
+                      <div class="flex items-center justify-end mt-2 pt-2 border-t border-purple-200/50 dark:border-purple-700/50">
+                        <button @click.stop="copyMessage(resp.message)" class="text-purple-400 hover:text-purple-600 mr-2" title="复制">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
+                        <div class="text-[10px] opacity-40">{{ formatTime(resp.timestamp) }}</div>
+                      </div>
+                    </div>
+                    
+                    <!-- 其他类型消息 -->
+                    <div v-else class="max-w-[85%] rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm text-sm"
                          :class="{
-                           'bg-white dark:bg-[#1E1E1E] text-gray-700 dark:text-gray-300 border border-gray-100 dark:border-white/5': !resp.message.includes('思考') && !resp.type.startsWith('ACTION') && resp.type !== 'ERROR',
-                           'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-800': resp.message.includes('思考') || resp.message.includes('分析'),
+                           'bg-white dark:bg-[#1E1E1E] text-gray-700 dark:text-gray-300 border border-gray-100 dark:border-white/5': !resp.type.startsWith('ACTION') && resp.type !== 'ERROR',
                            'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800': resp.type === 'ACTION' || resp.message.startsWith('执行'),
                            'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-100 dark:border-red-800': resp.type === 'ERROR'
                          }">
                       <div class="flex items-start gap-2">
                         <!-- 图标 -->
-                        <span v-if="resp.message.includes('思考') || resp.message.includes('分析')">💭</span>
-                        <span v-else-if="resp.type === 'ACTION' || resp.message.startsWith('执行')">🎯</span>
+                        <span v-if="resp.type === 'ACTION' || resp.message.startsWith('执行')">🎯</span>
                         <span v-else-if="resp.type === 'ERROR'">❌</span>
                         <span v-else-if="resp.type === 'WARNING'">⚠️</span>
                         
@@ -106,14 +133,6 @@
                             title="复制"
                          >
                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                         </button>
-                         <!-- 删除 -->
-                         <button 
-                            @click="deleteMessage(resp.id)"
-                            class="text-gray-400 hover:text-red-500 transition-colors"
-                            title="删除"
-                         >
-                           <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                          </button>
                          <!-- 时间戳 -->
                          <div class="text-[10px] opacity-40">{{ formatTime(resp.timestamp) }}</div>
@@ -143,8 +162,8 @@
               </div>
             </div>
             
-            <!-- 底部输入区域 -->
-            <div class="border-t border-gray-200 dark:border-white/10 bg-white dark:bg-[#1E1E1E] p-3">
+            <!-- 底部输入区域 (固定在底部) -->
+            <div class="sticky bottom-0 z-10 border-t border-gray-200 dark:border-white/10 bg-white dark:bg-[#1E1E1E] p-3 -mx-4 -mb-4">
               <!-- 执行中控制栏 -->
               <div v-if="isRunning" class="flex items-center justify-between mb-3 px-2">
                 <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -294,6 +313,24 @@
                             min="10" max="200"
                         >
                     </div>
+                </div>
+
+                <!-- 视觉策略 -->
+                <div class="flex items-center justify-between py-2 border-t border-gray-100 dark:border-white/5">
+                    <div>
+                        <div class="text-sm text-gray-800 dark:text-white">视觉策略</div>
+                        <div class="text-xs text-gray-500">控制 AI 如何识别屏幕元素</div>
+                    </div>
+                    <select 
+                        :value="visualStrategy"
+                        @change="saveVisualStrategy(($event.target as HTMLSelectElement).value)"
+                        class="rounded-lg px-3 py-1.5 text-sm bg-gray-50 border border-gray-300 text-gray-900 dark:bg-[#121212] dark:border-white/10 dark:text-white"
+                    >
+                        <option value="auto">自动 (推荐)</option>
+                        <option value="som">标记模式</option>
+                        <option value="grid">网格模式</option>
+                        <option value="none">纯视觉</option>
+                    </select>
                 </div>
 
                 <!-- 开发者模式 -->
@@ -1097,7 +1134,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, computed, watch } from 'vue'
 import Bridge from './Bridge'
 
 // --- Types ---
@@ -1213,6 +1250,14 @@ const shizukuStatus = ref({
     uid: -1,
     privilege: 'UNKNOWN'
 })
+
+// Visual strategy state
+const savedVisualStrategy = Bridge.getVisualStrategy()
+const visualStrategy = ref(savedVisualStrategy || 'auto')
+const saveVisualStrategy = (strategy: string) => {
+    visualStrategy.value = strategy
+    Bridge.setVisualStrategy(strategy)
+}
 
 // Computed: check if permission setup is needed
 const needsPermissionSetup = computed(() => {
@@ -1393,11 +1438,18 @@ const getCommandParams = (type: string) => {
 const commandToScript = (cmd: ScriptCommand): string => {
     const params = [cmd.param1, cmd.param2, cmd.param3, cmd.param4].filter(p => p.trim())
     if (['tap', 'doubletap', 'longpress'].includes(cmd.type)) {
+        // Check if it's a mark-based tap
+        if (cmd.param1 === 'mark' && cmd.param2) {
+            return `#${cmd.type} mark=${cmd.param2}`
+        }
         return `#${cmd.type} ${cmd.param1},${cmd.param2}`
     } else if (cmd.type === 'swipe') {
         return `#swipe ${cmd.param1},${cmd.param2},${cmd.param3},${cmd.param4}`
     } else if (['back', 'home', 'enter', 'repeat_start'].includes(cmd.type)) {
         return `#${cmd.type}`
+    } else if (['type', 'input', 'launch', 'shell', 'keyevent'].includes(cmd.type)) {
+        // Commands where param1 contains the full text/app/command
+        return `#${cmd.type} ${cmd.param1}`
     } else if (['wait', 'loop', 'loop_time', 'repeat', 'repeat_end'].includes(cmd.type)) {
         return `#${cmd.type} ${cmd.param1}`
     } else {
@@ -1410,14 +1462,28 @@ const scriptToCommand = (line: string): ScriptCommand => {
     const cmd: ScriptCommand = { type: 'tap', param1: '', param2: '', param3: '', param4: '' }
     if (!line.startsWith('#')) return cmd
     
-    const parts = line.substring(1).split(' ', 2)
-    cmd.type = parts[0].toLowerCase()
-    const args = parts[1] || ''
+    // Split on first space only to preserve params with spaces
+    const firstSpace = line.indexOf(' ')
+    if (firstSpace === -1) {
+        // No params, e.g., #back, #home
+        cmd.type = line.substring(1).toLowerCase()
+        return cmd
+    }
+    
+    cmd.type = line.substring(1, firstSpace).toLowerCase()
+    const args = line.substring(firstSpace + 1).trim()
     
     if (['tap', 'doubletap', 'longpress'].includes(cmd.type)) {
-        const coords = args.split(',')
-        cmd.param1 = coords[0]?.trim() || ''
-        cmd.param2 = coords[1]?.trim() || ''
+        // Handle mark-based commands: #tap mark=5
+        if (args.startsWith('mark=')) {
+            cmd.param1 = 'mark'
+            cmd.param2 = args.substring(5)  // The mark number
+        } else {
+            // Coordinate-based: #tap 500,800
+            const coords = args.split(',')
+            cmd.param1 = coords[0]?.trim() || ''
+            cmd.param2 = coords[1]?.trim() || ''
+        }
     } else if (cmd.type === 'swipe') {
         const coords = args.split(',')
         cmd.param1 = coords[0]?.trim() || ''
@@ -1427,7 +1493,7 @@ const scriptToCommand = (line: string): ScriptCommand => {
     } else if (['back', 'home', 'enter', 'repeat_start'].includes(cmd.type)) {
         // No params
     } else {
-        // For wait, loop, loop_time, repeat, repeat_end, type, launch, etc.
+        // For type, launch, wait, loop, etc. - put entire args as param1
         cmd.param1 = args
     }
     
@@ -2526,26 +2592,136 @@ const getSessionMessages = computed(() => {
     const session = chatSessions.value.find(s => s.id === importSelection.value.sessionId)
     if (!session) return []
     
-    // Extract script commands (#tap, #swipe, etc.) from assistant messages
+    // Extract script commands and action patterns from assistant messages
     const extractedCommands: { content: string, source: string }[] = []
     
     for (const msg of session.messages) {
         if (msg.role === 'assistant') {
-            // Look for lines starting with # in the message content
             const lines = msg.content.split('\n')
             for (const line of lines) {
                 const trimmed = line.trim()
-                // Match valid script commands
+                
+                // 1. 原有脚本命令格式 (#tap, #swipe, etc.)
                 if (trimmed.match(/^#(tap|swipe|type|input|back|home|enter|longpress|doubletap|wait|keyevent|launch|shell|loop|loop_time|repeat|repeat_start|repeat_end)\b/i)) {
                     extractedCommands.push({
                         content: trimmed,
                         source: msg.content.substring(0, 30) + '...'
                     })
                 }
+                
+                // 2. AI do() 命令格式 - 提取并转换为脚本格式
+                // Tap with mark
+                const tapMarkMatch = trimmed.match(/do\s*\(\s*action\s*=\s*"Tap"\s*,\s*mark\s*=\s*(\d+)/i)
+                if (tapMarkMatch) {
+                    extractedCommands.push({
+                        content: `#tap mark=${tapMarkMatch[1]}`,
+                        source: '点击标记 ' + tapMarkMatch[1]
+                    })
+                }
+                
+                // Tap with coordinates
+                const tapCoordMatch = trimmed.match(/do\s*\(\s*action\s*=\s*"Tap"\s*,\s*element\s*=\s*[\[\(](\d+)\s*,\s*(\d+)/i)
+                if (tapCoordMatch) {
+                    extractedCommands.push({
+                        content: `#tap ${tapCoordMatch[1]},${tapCoordMatch[2]}`,
+                        source: `点击(${tapCoordMatch[1]},${tapCoordMatch[2]})`
+                    })
+                }
+                
+                // Swipe
+                const swipeMatch = trimmed.match(/do\s*\(\s*action\s*=\s*"Swipe"\s*,\s*start\s*=\s*[\[\(](\d+)\s*,\s*(\d+)[\]\)]\s*,\s*end\s*=\s*[\[\(](\d+)\s*,\s*(\d+)/i)
+                if (swipeMatch) {
+                    extractedCommands.push({
+                        content: `#swipe ${swipeMatch[1]},${swipeMatch[2]},${swipeMatch[3]},${swipeMatch[4]}`,
+                        source: `滑动(${swipeMatch[1]},${swipeMatch[2]})->(${swipeMatch[3]},${swipeMatch[4]})`
+                    })
+                }
+                
+                // Type
+                const typeMatch = trimmed.match(/do\s*\(\s*action\s*=\s*"Type"\s*,\s*text\s*=\s*"([^"]*)"/i)
+                if (typeMatch) {
+                    extractedCommands.push({
+                        content: `#type ${typeMatch[1]}`,
+                        source: `输入: ${typeMatch[1].substring(0, 20)}`
+                    })
+                }
+                
+                // Launch
+                const launchMatch = trimmed.match(/do\s*\(\s*action\s*=\s*"Launch"\s*,\s*app\s*=\s*"([^"]*)"/i)
+                if (launchMatch) {
+                    extractedCommands.push({
+                        content: `#launch ${launchMatch[1]}`,
+                        source: `启动: ${launchMatch[1]}`
+                    })
+                }
+                
+                // Simple actions
+                if (trimmed.match(/do\s*\(\s*action\s*=\s*"Back"/i)) {
+                    extractedCommands.push({ content: '#back', source: '返回' })
+                }
+                if (trimmed.match(/do\s*\(\s*action\s*=\s*"Home"/i)) {
+                    extractedCommands.push({ content: '#home', source: '主屏幕' })
+                }
+                if (trimmed.match(/do\s*\(\s*action\s*=\s*"Enter"/i)) {
+                    extractedCommands.push({ content: '#enter', source: '确认' })
+                }
+            }
+            
+            // 3. 提取执行日志中的动作 (格式: "执行: 动作描述")
+            // 点击日志: "执行: 点击 (500, 800)" 或 "点击: (500, 800)"
+            const clickLogMatch = msg.content.match(/(?:执行[：:]\s*)?点击\s*\(?\s*(\d+)\s*[,，]\s*(\d+)\s*\)?/)
+            if (clickLogMatch) {
+                extractedCommands.push({
+                    content: `#tap ${clickLogMatch[1]},${clickLogMatch[2]}`,
+                    source: `日志: 点击(${clickLogMatch[1]},${clickLogMatch[2]})`
+                })
+            }
+            
+            // 启动应用日志: "执行: 启动应用 \"微信\""
+            const launchLogMatch = msg.content.match(/(?:执行[：:]\s*)?启动应用\s*[""]?([^"""\n]+)[""]?/)
+            if (launchLogMatch) {
+                extractedCommands.push({
+                    content: `#launch ${launchLogMatch[1].trim()}`,
+                    source: `日志: 启动${launchLogMatch[1].trim()}`
+                })
+            }
+            
+            // 输入日志: "执行: 输入 \"文本\""
+            const inputLogMatch = msg.content.match(/(?:执行[：:]\s*)?输入\s*[""]([^""]+)[""]/)
+            if (inputLogMatch) {
+                extractedCommands.push({
+                    content: `#type ${inputLogMatch[1]}`,
+                    source: `日志: 输入${inputLogMatch[1].substring(0, 15)}`
+                })
+            }
+            
+            // 滑动日志: "执行: 滑动 (x1,y1)→(x2,y2)"
+            const swipeLogMatch = msg.content.match(/(?:执行[：:]\s*)?滑动\s*\(?\s*(\d+)\s*[,，]\s*(\d+)\s*\)?\s*[→>-]+\s*\(?\s*(\d+)\s*[,，]\s*(\d+)\s*\)?/)
+            if (swipeLogMatch) {
+                extractedCommands.push({
+                    content: `#swipe ${swipeLogMatch[1]},${swipeLogMatch[2]},${swipeLogMatch[3]},${swipeLogMatch[4]}`,
+                    source: `日志: 滑动`
+                })
+            }
+            
+            // 返回日志
+            if (msg.content.includes('执行: 返回') || msg.content.includes('执行：返回')) {
+                extractedCommands.push({ content: '#back', source: '日志: 返回' })
+            }
+            
+            // 主屏幕日志
+            if (msg.content.includes('执行: 回到主屏幕') || msg.content.includes('执行：回到主屏幕')) {
+                extractedCommands.push({ content: '#home', source: '日志: 主屏幕' })
+            }
+            
+            // 确认/回车日志
+            if (msg.content.includes('执行: 确认') || msg.content.includes('执行：确认') || msg.content.includes('执行: 回车')) {
+                extractedCommands.push({ content: '#enter', source: '日志: 确认' })
             }
         }
     }
     
+    // 不再去重，保留所有命令（包括重复的），用户可以手动选择
     return extractedCommands
 })
 
@@ -2568,7 +2744,18 @@ const importSelectedTasks = () => {
         return
     }
     
-    // Parse selected commands into structured format
+    // If not currently editing a list, create a new one
+    if (!showTaskEditor.value) {
+        editingList.value = {
+            id: crypto.randomUUID(),
+            name: '从对话导入',
+            script: '',
+            createdAt: Date.now()
+        }
+        editingCommands.value = []
+    }
+    
+    // Parse selected commands into structured format and add them
     const newStructuredCmds = selectedCmds.map(scriptToCommand)
     editingCommands.value.push(...newStructuredCmds)
     
@@ -2577,7 +2764,11 @@ const importSelectedTasks = () => {
     editingList.value.script = currentScript 
         ? currentScript + '\n' + selectedCmds.join('\n')
         : selectedCmds.join('\n')
+    
+    // Close modals and open task editor
     showImportModal.value = false
+    showTaskManager.value = false
+    showTaskEditor.value = true
 }
 
 // --- Script Helpers ---
@@ -2666,17 +2857,53 @@ onMounted(() => {
     logs.value = newLogs
     scrollToBottom()
     
-    // Convert logs to chat messages for display
-    // Look for AI response patterns and extract them
-    newLogs.forEach(log => {
-      if (log.type === 'ACTION' && log.message.includes('执行:')) {
-        // This is an action being executed - could add to chat UI
-      }
-    })
+    // 将重要的 AI 日志转换为 ChatMessage 进行持久化
+    if (chatMessages.value.length > 0 && newLogs.length > 0) {
+        const lastLog = newLogs[newLogs.length - 1]
+        // 检查是否是重要的 AI 响应
+        const isRelevant = 
+            lastLog.message.includes('AI 思考') ||
+            lastLog.message.includes('💭') ||
+            lastLog.message.includes('执行动作') ||
+            lastLog.message.includes('执行:') ||
+            lastLog.message.includes('执行：') ||
+            lastLog.message.includes('🎯') ||
+            lastLog.message.includes('任务完成') ||
+            lastLog.message.includes('任务停止') ||
+            lastLog.type === 'ACTION' ||
+            lastLog.type === 'ERROR'
+        
+        if (isRelevant) {
+            // 避免重复添加 (检查最后一条消息)
+            const lastMsg = chatMessages.value[chatMessages.value.length - 1]
+            if (!lastMsg || lastMsg.content !== lastLog.message) {
+                const msg: ChatMessage = {
+                    id: crypto.randomUUID(),
+                    role: 'assistant',
+                    content: lastLog.message,
+                    timestamp: lastLog.timestamp,
+                    status: lastLog.type === 'ERROR' ? 'error' : 'done'
+                }
+                chatMessages.value.push(msg)
+                
+                // 每添加5条消息就保存一次，防止数据丢失
+                if (chatMessages.value.length % 5 === 0) {
+                    saveChatToSession()
+                }
+            }
+        }
+    }
   })
   Bridge.onStatusUpdate((status: string) => {
-    if (status === 'running') isRunning.value = true
-    else if (status === 'completed' || status === 'cancelled' || status === 'error') isRunning.value = false
+    if (status === 'running') {
+        isRunning.value = true
+    } else if (status === 'completed' || status === 'cancelled' || status === 'error') {
+        isRunning.value = false
+        // 任务结束时持久化对话
+        saveChatToSession()
+        // 刷新命令历史（可能有新命令被保存）
+        loadCommandHistory()
+    }
   })
   Bridge.onServiceStatusUpdate((enabled: boolean) => {
     serviceEnabled.value = enabled
@@ -2720,6 +2947,16 @@ onMounted(() => {
   
   setInterval(checkPermissions, 2000)
   setInterval(checkShizukuStatus, 3000) // Periodically check Shizuku status
+  
+  // 页面关闭时保存（浏览器环境）
+  window.addEventListener('beforeunload', () => {
+    saveChatToSession()
+  })
+})
+
+// 组件销毁时保存（Vue生命周期）
+onBeforeUnmount(() => {
+  saveChatToSession()
 })
 </script>
 

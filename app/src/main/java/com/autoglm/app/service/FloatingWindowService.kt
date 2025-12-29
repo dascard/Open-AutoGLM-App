@@ -508,8 +508,6 @@ class FloatingWindowService : Service() {
             bubble.setOnClickListener {
                 isExpanded = !isExpanded
                 bubble.text = if (isExpanded) "💭 $thinkContent" else "💭 $preview"
-                // 滚动到底部
-                svLogs?.post { svLogs?.fullScroll(View.FOCUS_DOWN) }
             }
             // 添加点击提示
             if (thinkContent.length > 50) {

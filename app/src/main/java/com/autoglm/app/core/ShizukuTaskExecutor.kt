@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
+import com.autoglm.app.data.PreferencesManager
 import com.autoglm.app.shizuku.ShizukuHelper
 import com.autoglm.app.util.FileLogger
 import java.text.SimpleDateFormat
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 class ShizukuTaskExecutor(
         private val context: Context,
         private val aiClient: AIClient,
+        private val prefsManager: PreferencesManager,
         private val maxSteps: Int = 50
 ) {
     companion object {
@@ -430,6 +432,7 @@ class ShizukuTaskExecutor(
         // 判断是否需要隐藏悬浮窗（点击和滑动类操作）
         val needHide =
                 action is Action.TapMark ||
+                        action is Action.TapGrid ||
                         action is Action.Tap ||
                         action is Action.Swipe ||
                         action is Action.LongPress
@@ -439,6 +442,10 @@ class ShizukuTaskExecutor(
                 is Action.TapMark -> {
                     addLog(LogType.INFO, "执行: Mark 点击 [${action.markId}]")
                     clickByMarkWithHide(action.markId, needHide)
+                }
+                is Action.TapGrid -> {
+                    addLog(LogType.INFO, "执行: Grid 点击 [${action.gridRef}]")
+                    clickByGridWithHide(action.gridRef, needHide)
                 }
                 is Action.Tap -> {
                     addLog(LogType.INFO, "执行: ADB 点击 (${action.x}, ${action.y})")
@@ -489,6 +496,41 @@ class ShizukuTaskExecutor(
         }
     }
 
+    /** 通过 grid 点击并自动隐藏/显示悬浮窗 */
+    private suspend fun clickByGridWithHide(gridRef: String, hide: Boolean): String {
+        // 获取屏幕尺寸
+        val metrics = context.resources.displayMetrics
+        val screenWidth = metrics.widthPixels
+        val screenHeight = metrics.heightPixels
+
+        val coords = GridOverlay.gridToCoordinates(gridRef, screenWidth, screenHeight)
+        return if (coords != null) {
+            val (x, y) = coords
+            addLog(LogType.INFO, "Grid[$gridRef] 点击: ($x, $y)")
+            executeAdbWithHide("input tap $x $y", hide)
+        } else {
+            addLog(LogType.WARNING, "无法解析网格引用: $gridRef")
+            "错误: 无法解析网格引用 $gridRef"
+        }
+    }
+
+    /** 通过 grid 点击（无隐藏逻辑） */
+    private fun clickByGrid(gridRef: String): String {
+        val metrics = context.resources.displayMetrics
+        val screenWidth = metrics.widthPixels
+        val screenHeight = metrics.heightPixels
+
+        val coords = GridOverlay.gridToCoordinates(gridRef, screenWidth, screenHeight)
+        return if (coords != null) {
+            val (x, y) = coords
+            addLog(LogType.INFO, "Grid[$gridRef] 点击: ($x, $y)")
+            executeAdbCommand("input tap $x $y")
+        } else {
+            addLog(LogType.WARNING, "无法解析网格引用: $gridRef")
+            "错误: 无法解析网格引用 $gridRef"
+        }
+    }
+
     /** 执行 ADB 命令并自动隐藏/显示悬浮窗 */
     private suspend fun executeAdbWithHide(command: String, hide: Boolean): String {
         if (hide) {
@@ -526,6 +568,10 @@ class ShizukuTaskExecutor(
                     is Action.TapMark -> {
                         addLog(LogType.INFO, "执行: Mark 点击 [${action.markId}]")
                         clickByMark(action.markId)
+                    }
+                    is Action.TapGrid -> {
+                        addLog(LogType.INFO, "执行: Grid 点击 [${action.gridRef}]")
+                        clickByGrid(action.gridRef)
                     }
                     is Action.Tap -> {
                         addLog(LogType.INFO, "执行: ADB 点击 (${action.x}, ${action.y})")
@@ -770,12 +816,39 @@ class ShizukuTaskExecutor(
 
         if (screenshot == null) return null
 
-        // 5. 标注（此时悬浮窗已显示）
+        // 5. 根据视觉策略选择标注方式
+        val manualStrategy =
+                when (prefsManager.visualStrategy) {
+                    "som" -> VisualStrategy.SOM
+                    "grid" -> VisualStrategy.GRID
+                    "none" -> VisualStrategy.NONE
+                    else -> VisualStrategy.AUTO
+                }
+        val actualStrategy = GridOverlay.selectStrategy(elements.size, manualStrategy)
+
         val markedBitmap =
-                if (elements.isNotEmpty()) {
-                    SetOfMarks.drawMarks(screenshot, elements)
-                } else {
-                    screenshot
+                when (actualStrategy) {
+                    VisualStrategy.SOM -> {
+                        addLog(LogType.INFO, "视觉策略: Set-of-Marks (${elements.size} 元素)")
+                        if (elements.isNotEmpty()) {
+                            SetOfMarks.drawMarks(screenshot, elements)
+                        } else {
+                            GridOverlay.drawGrid(screenshot)
+                        }
+                    }
+                    VisualStrategy.GRID -> {
+                        addLog(LogType.INFO, "视觉策略: 网格模式")
+                        GridOverlay.drawGrid(screenshot)
+                    }
+                    VisualStrategy.NONE -> {
+                        addLog(LogType.INFO, "视觉策略: 纯视觉 (无标记)")
+                        screenshot
+                    }
+                    VisualStrategy.AUTO -> {
+                        // This shouldn't happen as selectStrategy resolves AUTO
+                        if (elements.isNotEmpty()) SetOfMarks.drawMarks(screenshot, elements)
+                        else GridOverlay.drawGrid(screenshot)
+                    }
                 }
 
         // DEBUG: 保存带标记的截图到本地 (仅保存最新一张)
@@ -796,7 +869,6 @@ class ShizukuTaskExecutor(
             Log.e(TAG, "Failed to save debug screenshot", e)
         }
 
-        addLog(LogType.INFO, "Set-of-Marks: 标注了 ${elements.size} 个可点击元素")
         return Pair(markedBitmap, elements)
     }
 

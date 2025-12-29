@@ -37,6 +37,9 @@ interface AndroidInterface {
     // Execution Mode
     getExecutionMode(): string;
     setExecutionMode(mode: string): void;
+    // Visual Strategy
+    getVisualStrategy(): string;
+    setVisualStrategy(strategy: string): void;
     // File Log
     getFileLogContent(): string;
     // Task Lists
@@ -367,6 +370,21 @@ class Bridge {
             window.Android.setExecutionMode(mode);
         } else {
             console.log('Mock: setExecutionMode', mode);
+        }
+    }
+
+    static getVisualStrategy(): string {
+        if (window.Android) {
+            return window.Android.getVisualStrategy();
+        }
+        return 'auto'; // Mock default
+    }
+
+    static setVisualStrategy(strategy: string) {
+        if (window.Android) {
+            window.Android.setVisualStrategy(strategy);
+        } else {
+            console.log('Mock: setVisualStrategy', strategy);
         }
     }
 

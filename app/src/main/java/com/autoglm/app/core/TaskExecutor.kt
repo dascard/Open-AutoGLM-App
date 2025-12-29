@@ -419,6 +419,7 @@ class TaskExecutor(
                 is Action.Done -> ""
                 is Action.AskUser -> ""
                 is Action.TapMark -> "" // 无障碍模式不使用 TapMark
+                is Action.TapGrid -> "" // 无障碍模式不使用 TapGrid
             }
         }
     }
@@ -488,6 +489,11 @@ class TaskExecutor(
                         // TapMark 主要用于 Shizuku 模式，在 AccessibilityService 模式下转换为普通 Tap
                         addLog(LogType.WARNING, "TapMark 在非 Shizuku 模式下不支持")
                         "TapMark 需要 Shizuku 模式"
+                    }
+                    is Action.TapGrid -> {
+                        // TapGrid 在无障碍模式下不支持
+                        addLog(LogType.WARNING, "TapGrid 在非 Shizuku 模式下不支持")
+                        "TapGrid 需要 Shizuku 模式"
                     }
                 }
             }
